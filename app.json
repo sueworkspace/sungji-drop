@@ -1,0 +1,32 @@
+{
+  "expo": {
+    "name": "성지DROP",
+    "slug": "sungji-drop",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0A1A"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.sungji.drop"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#00FF88",
+        "foregroundImage": "./assets/adaptive-icon.png"
+      },
+      "package": "com.sungji.drop"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font"
+    ]
+  }
+}
