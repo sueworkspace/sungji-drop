@@ -27,6 +27,9 @@
     },
     "plugins": [
       "expo-font"
-    ]
+    ],
+    "experiments": {
+      "baseUrl": "/sungji-drop"
+    }
   }
 }
