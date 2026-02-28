@@ -44,8 +44,6 @@ export default function LoginScreen() {
   // 공통 에러
   const [error, setError] = useState<string | null>(null);
 
-  // 연결 테스트
-  const [connStatus, setConnStatus] = useState<string | null>(null);
 
   // 탭 전환 애니메이션
   const tabIndicatorX = useRef(new Animated.Value(0)).current;
@@ -147,22 +145,6 @@ export default function LoginScreen() {
       }
     }
     // 성공 시 AuthContext에서 자동 처리
-  }
-
-  // ─── 연결 테스트 ──────────────────────────────────────────────────────────────
-
-  async function handleTestConnection() {
-    setConnStatus('테스트 중...');
-    try {
-      const r = await fetch('https://okrmviftqsrqjfxapyxm.supabase.co/rest/v1/', {
-        headers: {
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9rcm12aWZ0cXNycWpmeGFweXhtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyMTg2MjksImV4cCI6MjA4Nzc5NDYyOX0.Duk13orD42EFLEgBJ8Fj7YnpsfS3H_R61TaIOhXzlrw',
-        },
-      });
-      setConnStatus(`연결 OK (${r.status})`);
-    } catch (e: any) {
-      setConnStatus(`연결 실패: ${e?.message || '알 수 없는 오류'}`);
-    }
   }
 
   // ─── 소셜 로그인 (준비중) ─────────────────────────────────────────────────────
@@ -395,22 +377,6 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* ─── 연결 테스트 (디버그) ─── */}
-          <View style={{ marginTop: 24, alignItems: 'center' }}>
-            <TouchableOpacity
-              onPress={handleTestConnection}
-              style={{ paddingVertical: 8, paddingHorizontal: 16, borderWidth: 1, borderColor: Colors.border, borderRadius: 8 }}
-            >
-              <Text style={{ fontFamily: FontFamily.korean, fontSize: 12, color: Colors.textMuted }}>
-                서버 연결 테스트
-              </Text>
-            </TouchableOpacity>
-            {connStatus && (
-              <Text style={{ fontFamily: FontFamily.korean, fontSize: 11, color: connStatus.includes('OK') ? Colors.dropGreen : Colors.alertRed, marginTop: 8 }}>
-                {connStatus}
-              </Text>
-            )}
-          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
