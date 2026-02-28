@@ -1,143 +1,212 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
-  View, Text, FlatList, ScrollView, TouchableOpacity,
-  StyleSheet, Animated, TextInput,
+  View,
+  Text,
+  FlatList,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  Animated,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Colors, Spacing, CommonStyles } from '../constants';
-import { deals, devices, stores, getDevice, getStore, formatPrice, dailyMissions } from '../src/data/mock';
+import { Colors, Spacing } from '../constants';
+import { PixelText, NeonButton, ScanlineOverlay } from '../components';
 import { RootStackParamList } from '../navigation/RootNavigator';
+import { useStore } from '../src/stores/useStore';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
-const FILTERS = ['전체', '삼성', '애플', '자급제', 'SK', 'KT', 'LG U+', '알뜰폰'];
-const SORT_OPTIONS = ['할인율순', '가격순', '최신순', '인기순'];
+type QuoteStatus = 'open' | 'completed' | 'expired';
+
+interface MockRequest {
+  id: string;
+  deviceName: string;
+  storage: string;
+  color: string;
+  carrier: string;
+  status: QuoteStatus;
+  quoteCount: number;
+  createdAt: string;
+}
+
+const MOCK_REQUESTS: MockRequest[] = [
+  {
+    id: '1',
+    deviceName: 'Galaxy S25 Ultra',
+    storage: '256GB',
+    color: '티타늄 블랙',
+    carrier: 'SKT',
+    status: 'open',
+    quoteCount: 3,
+    createdAt: '2시간 전',
+  },
+  {
+    id: '2',
+    deviceName: 'iPhone 16 Pro',
+    storage: '128GB',
+    color: '내추럴 티타늄',
+    carrier: 'KT',
+    status: 'completed',
+    quoteCount: 7,
+    createdAt: '1일 전',
+  },
+  {
+    id: '3',
+    deviceName: 'Galaxy Z Fold 6',
+    storage: '512GB',
+    color: '네이비',
+    carrier: 'LG U+',
+    status: 'expired',
+    quoteCount: 2,
+    createdAt: '3일 전',
+  },
+];
+
+const POPULAR_DEVICES = [
+  { id: 'p1', name: 'Galaxy S25 Ultra', brand: '삼성', badge: 'HOT' },
+  { id: 'p2', name: 'iPhone 16 Pro Max', brand: '애플', badge: 'NEW' },
+  { id: 'p3', name: 'Galaxy Z Flip 6', brand: '삼성', badge: '' },
+  { id: 'p4', name: 'iPhone 15', brand: '애플', badge: '' },
+  { id: 'p5', name: 'Galaxy A55', brand: '삼성', badge: 'SALE' },
+];
+
+const STATUS_CONFIG: Record<QuoteStatus, { label: string; color: string; bg: string }> = {
+  open: { label: '입찰중', color: Colors.dropGreen, bg: '#00FF8822' },
+  completed: { label: '견적완료', color: Colors.dealGold, bg: '#FFD93D22' },
+  expired: { label: '만료', color: Colors.textMuted, bg: '#33333333' },
+};
 
 export default function HomeScreen() {
   const navigation = useNavigation<Nav>();
-  const [selectedFilter, setSelectedFilter] = useState('전체');
-  const [liveCount] = useState(deals.filter(d => d.isLive).length);
-  const blinkAnim = useRef(new Animated.Value(1)).current;
+  const { unreadNotifications } = useStore();
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(blinkAnim, { toValue: 0.3, duration: 500, useNativeDriver: true }),
-        Animated.timing(blinkAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 0.3, duration: 600, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
       ])
     ).start();
   }, []);
 
-  const sortedDeals = [...deals].sort((a, b) => b.discountRate - a.discountRate);
-
-  const filteredDeals = sortedDeals.filter(deal => {
-    if (selectedFilter === '전체') return true;
-    const device = getDevice(deal.deviceId);
-    if (!device) return false;
-    if (selectedFilter === '삼성') return device.brand === 'samsung';
-    if (selectedFilter === '애플') return device.brand === 'apple';
-    return true;
-  });
+  const renderRequestCard = ({ item }: { item: MockRequest }) => {
+    const statusCfg = STATUS_CONFIG[item.status];
+    return (
+      <TouchableOpacity
+        style={styles.requestCard}
+        onPress={() => navigation.navigate('QuoteDetail', { requestId: item.id })}
+        activeOpacity={0.75}
+      >
+        <View style={styles.requestCardTop}>
+          <View style={styles.deviceNameRow}>
+            <Text style={styles.deviceName}>{item.deviceName}</Text>
+            <View style={[styles.statusBadge, { backgroundColor: statusCfg.bg, borderColor: statusCfg.color }]}>
+              {item.status === 'open' && (
+                <Animated.View style={[styles.pulseDot, { opacity: pulseAnim, backgroundColor: statusCfg.color }]} />
+              )}
+              <Text style={[styles.statusText, { color: statusCfg.color }]}>{statusCfg.label}</Text>
+            </View>
+          </View>
+          <Text style={styles.deviceOptions}>
+            {item.storage} · {item.color} · {item.carrier}
+          </Text>
+        </View>
+        <View style={styles.requestCardBottom}>
+          <Text style={styles.quoteCount}>
+            <Text style={styles.quoteCountNum}>{item.quoteCount}</Text>개 견적
+          </Text>
+          <Text style={styles.createdAt}>{item.createdAt}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
+      <ScanlineOverlay />
+
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.logo}>
-          성지<Text style={styles.logoGreen}>DROP</Text>
-        </Text>
-        <TouchableOpacity onPress={() => navigation.navigate('Notifications')}>
+        <PixelText size="section" color={Colors.dropGreen} style={styles.logoText}>
+          성지DROP
+        </PixelText>
+        <TouchableOpacity
+          style={styles.bellWrapper}
+          onPress={() => navigation.navigate('Notifications')}
+        >
           <Text style={styles.bellIcon}>🔔</Text>
-          <View style={styles.notifBadge}>
-            <Text style={styles.notifBadgeText}>3</Text>
-          </View>
+          {unreadNotifications > 0 && (
+            <View style={styles.notifBadge}>
+              <Text style={styles.notifBadgeText}>{unreadNotifications}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
-      {/* Live Counter */}
-      <View style={styles.liveRow}>
-        <Animated.View style={[styles.liveDot, { opacity: blinkAnim }]} />
-        <Text style={styles.liveText}>LIVE {liveCount}개 성지 드롭 중</Text>
-      </View>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
+        {/* CTA */}
+        <View style={styles.ctaSection}>
+          <Text style={styles.ctaSubtitle}>성지급 최저가를 딜러에게 직접 받으세요</Text>
+          <NeonButton
+            label="견적 요청하기 ▼"
+            onPress={() => navigation.navigate('QuoteRequest')}
+            size="lg"
+            style={styles.ctaButton}
+          />
+        </View>
 
-      {/* Search Bar */}
-      <View style={styles.searchBar}>
-        <Text style={styles.searchIcon}>🔍</Text>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="기종, 지역, 통신사 검색..."
-          placeholderTextColor={Colors.textMuted}
-        />
-      </View>
-
-      {/* Filter Chips */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow}>
-        {FILTERS.map(f => (
-          <TouchableOpacity
-            key={f}
-            onPress={() => setSelectedFilter(f)}
-            style={[styles.filterChip, selectedFilter === f && styles.filterChipActive]}
-          >
-            <Text style={[
-              styles.filterText,
-              { color: selectedFilter === f ? Colors.dropGreen : Colors.textMuted },
-            ]}>
-              {f}
-            </Text>
+        {/* My Quote Requests */}
+        <View style={styles.sectionHeader}>
+          <PixelText size="section" color={Colors.dropGreen}>내 견적 요청</PixelText>
+          <TouchableOpacity>
+            <PixelText size="badge" color={Colors.textMuted}>전체보기 →</PixelText>
           </TouchableOpacity>
-        ))}
-      </ScrollView>
+        </View>
 
-      {/* Sort */}
-      <View style={styles.sortRow}>
-        <Text style={styles.sortText}>할인율순 ▼</Text>
-      </View>
+        {MOCK_REQUESTS.length === 0 ? (
+          <View style={styles.emptyBox}>
+            <PixelText size="label" color={Colors.textMuted}>아직 견적 요청이 없습니다</PixelText>
+          </View>
+        ) : (
+          <FlatList
+            data={MOCK_REQUESTS}
+            keyExtractor={(item) => item.id}
+            renderItem={renderRequestCard}
+            scrollEnabled={false}
+            contentContainerStyle={styles.requestList}
+          />
+        )}
 
-      {/* Deal List */}
-      <FlatList
-        data={filteredDeals}
-        keyExtractor={item => item.id}
-        contentContainerStyle={{ paddingHorizontal: Spacing.md, paddingBottom: 20 }}
-        renderItem={({ item, index }) => {
-          const device = getDevice(item.deviceId);
-          const store = getStore(item.storeId);
-          if (!device || !store) return null;
-          const rank = index + 1;
-          const rankColor = rank === 1 ? Colors.dealGold : rank <= 3 ? '#C0C0C0' : '#555';
-
-          return (
-            <TouchableOpacity
-              onPress={() => navigation.navigate('DealDetail', { dealId: item.id })}
-              activeOpacity={0.7}
-              style={[styles.dealCard, item.isHot && styles.dealCardHot]}
-            >
-              <View style={styles.rankBox}>
-                <Text style={[styles.rankText, { color: rankColor }]}>{rank}</Text>
-              </View>
-              <View style={styles.dealInfo}>
-                <View style={styles.dealNameRow}>
-                  <Text style={styles.dealName}>{device.name}</Text>
-                  <Text style={styles.dealStorage}>{device.storage}</Text>
-                  {item.isHot && (
-                    <Animated.Text style={[styles.hotBadge, { opacity: blinkAnim }]}>HOT</Animated.Text>
-                  )}
+        {/* Popular Devices */}
+        <View style={[styles.sectionHeader, { marginTop: Spacing.lg }]}>
+          <PixelText size="section" color={Colors.dropGreen}>인기 기기</PixelText>
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.popularRow}
+        >
+          {POPULAR_DEVICES.map((device) => (
+            <TouchableOpacity key={device.id} style={styles.popularCard} activeOpacity={0.75}>
+              {device.badge !== '' && (
+                <View style={styles.popularBadge}>
+                  <Text style={styles.popularBadgeText}>{device.badge}</Text>
                 </View>
-                <Text style={styles.dealLocation}>📍 {store.name}</Text>
-                {item.stock <= 3 && (
-                  <Text style={styles.stockWarning}>잔여 {item.stock}대</Text>
-                )}
+              )}
+              <View style={styles.popularIconPlaceholder}>
+                <Text style={styles.popularIconText}>📱</Text>
               </View>
-              <View style={styles.dealPrice}>
-                <Text style={styles.priceNeon}>₩{formatPrice(item.price)}</Text>
-                <Text style={styles.priceOriginal}>₩{formatPrice(item.originalPrice)}</Text>
-                <Text style={styles.discount}>-{item.discountRate}%</Text>
-              </View>
+              <Text style={styles.popularDeviceName} numberOfLines={2}>
+                {device.name}
+              </Text>
+              <Text style={styles.popularBrand}>{device.brand}</Text>
             </TouchableOpacity>
-          );
-        }}
-      />
+          ))}
+        </ScrollView>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -145,75 +214,156 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
 
-  // Header
   header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: Spacing.base, paddingVertical: Spacing.md,
-    borderBottomWidth: 1, borderBottomColor: '#1a1a2e',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1a1a2e',
   },
-  logo: { fontSize: 22, fontWeight: '900', color: '#fff' },
-  logoGreen: { color: Colors.dropGreen },
+  logoText: {
+    textShadowColor: Colors.dropGreenGlow,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+  },
+  bellWrapper: { position: 'relative', padding: 4 },
   bellIcon: { fontSize: 22 },
   notifBadge: {
-    position: 'absolute', top: -4, right: -6,
-    backgroundColor: Colors.alertRed, borderRadius: 8,
-    width: 16, height: 16, alignItems: 'center', justifyContent: 'center',
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: Colors.alertRed,
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
   },
   notifBadgeText: { fontFamily: 'PressStart2P', fontSize: 6, color: '#fff' },
 
-  // Live
-  liveRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: Spacing.base, paddingVertical: 6,
+  ctaSection: {
+    paddingHorizontal: Spacing.base,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
+    gap: Spacing.sm,
   },
-  liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.alertRed },
-  liveText: { fontFamily: 'PressStart2P', fontSize: 7, color: Colors.alertRed },
+  ctaSubtitle: {
+    fontFamily: 'NotoSansKR',
+    fontSize: 13,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  ctaButton: { width: '100%' },
 
-  // Search
-  searchBar: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    marginHorizontal: Spacing.md, marginVertical: 6,
-    paddingHorizontal: 12, paddingVertical: 10,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.sm,
+    marginTop: Spacing.md,
   },
-  searchIcon: { fontSize: 14 },
-  searchInput: { flex: 1, fontSize: 13, color: Colors.textPrimary },
 
-  // Filters
-  filterRow: { paddingHorizontal: Spacing.md, paddingVertical: 6, maxHeight: 42 },
-  filterChip: {
-    paddingHorizontal: 12, paddingVertical: 7,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
-    marginRight: 6,
-  },
-  filterChipActive: { backgroundColor: '#00FF8822', borderColor: Colors.dropGreen },
-  filterText: { fontFamily: 'PressStart2P', fontSize: 7 },
+  requestList: { paddingHorizontal: Spacing.base, gap: Spacing.sm },
 
-  // Sort
-  sortRow: { paddingHorizontal: Spacing.base, paddingVertical: 4, alignItems: 'flex-end' },
-  sortText: { fontFamily: 'PressStart2P', fontSize: 7, color: Colors.textMuted },
+  requestCard: {
+    backgroundColor: Colors.card,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  requestCardTop: { marginBottom: Spacing.sm },
+  deviceNameRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  deviceName: {
+    fontFamily: 'NotoSansKR-Bold',
+    fontSize: 15,
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderRadius: 2,
+  },
+  pulseDot: { width: 6, height: 6, borderRadius: 3 },
+  statusText: { fontFamily: 'PressStart2P', fontSize: 6 },
+  deviceOptions: {
+    fontFamily: 'NotoSansKR',
+    fontSize: 12,
+    color: Colors.textMuted,
+  },
+  requestCardBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#1a1a2e',
+    paddingTop: Spacing.sm,
+  },
+  quoteCount: { fontFamily: 'NotoSansKR', fontSize: 12, color: Colors.textSecondary },
+  quoteCountNum: { fontFamily: 'PressStart2P', fontSize: 11, color: Colors.dropGreen },
+  createdAt: { fontFamily: 'NotoSansKR', fontSize: 11, color: Colors.textMuted },
 
-  // Deal Card
-  dealCard: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: '#222',
-    padding: 12, marginBottom: 8, gap: 12,
+  emptyBox: {
+    margin: Spacing.base,
+    padding: Spacing.lg,
+    backgroundColor: Colors.card,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
   },
-  dealCardHot: { backgroundColor: '#00FF8808', borderColor: '#00FF8833' },
-  rankBox: { width: 28, alignItems: 'center' },
-  rankText: { fontFamily: 'PressStart2P', fontSize: 14 },
-  dealInfo: { flex: 1 },
-  dealNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
-  dealName: { fontSize: 13, fontWeight: '700', color: '#fff' },
-  dealStorage: { fontSize: 10, color: '#666' },
-  hotBadge: { fontFamily: 'PressStart2P', fontSize: 6, color: Colors.alertRed },
-  dealLocation: { fontSize: 10, color: '#666', marginTop: 3 },
-  stockWarning: { fontFamily: 'PressStart2P', fontSize: 6, color: Colors.alertRed, marginTop: 2 },
-  dealPrice: { alignItems: 'flex-end' },
-  priceNeon: {
-    fontFamily: 'PressStart2P', fontSize: 11, color: Colors.dropGreen,
-    textShadowColor: '#00FF8866', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 8,
+
+  popularRow: { paddingHorizontal: Spacing.base, gap: Spacing.sm, paddingBottom: Spacing.sm },
+  popularCard: {
+    width: 110,
+    backgroundColor: Colors.card,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.sm,
+    alignItems: 'center',
+    position: 'relative',
   },
-  priceOriginal: { fontSize: 10, color: '#555', textDecorationLine: 'line-through', marginVertical: 2 },
-  discount: { fontFamily: 'PressStart2P', fontSize: 8, color: Colors.alertRed },
+  popularBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    backgroundColor: Colors.alertRed,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  popularBadgeText: { fontFamily: 'PressStart2P', fontSize: 5, color: '#fff' },
+  popularIconPlaceholder: {
+    width: 56,
+    height: 56,
+    backgroundColor: Colors.deepDark,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+    marginTop: 8,
+  },
+  popularIconText: { fontSize: 28 },
+  popularDeviceName: {
+    fontFamily: 'NotoSansKR-Bold',
+    fontSize: 11,
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    marginBottom: 2,
+  },
+  popularBrand: { fontFamily: 'NotoSansKR', fontSize: 10, color: Colors.textMuted },
 });

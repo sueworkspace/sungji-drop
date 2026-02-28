@@ -1,67 +1,54 @@
 import { create } from 'zustand';
-import { Deal, WishlistItem, deals as mockDeals } from '../data/mock';
 
-interface AppState {
-  // Filters
-  selectedBrand: string | null;
-  selectedSort: 'discount' | 'price' | 'recent' | 'popular';
-  setSelectedBrand: (brand: string | null) => void;
-  setSelectedSort: (sort: 'discount' | 'price' | 'recent' | 'popular') => void;
-
-  // Wishlist
-  wishlist: WishlistItem[];
-  addToWishlist: (deviceId: string, currentPrice: number) => void;
-  removeFromWishlist: (deviceId: string) => void;
-  isWishlisted: (deviceId: string) => boolean;
-  setTargetPrice: (deviceId: string, price: number) => void;
-
-  // Notifications
-  unreadCount: number;
-  setUnreadCount: (count: number) => void;
-
-  // User
-  points: number;
-  addPoints: (amount: number) => void;
+interface QuoteDraft {
+  deviceId: string | null;
+  deviceName: string | null;
+  storage: string | null;
+  color: string | null;
+  carrier: string | null;
+  planType: string | null;
+  tradeInDevice: string | null;
+  tradeInCondition: string | null;
+  additionalNotes: string | null;
 }
 
-export const useStore = create<AppState>((set, get) => ({
-  // Filters
-  selectedBrand: null,
-  selectedSort: 'discount',
-  setSelectedBrand: (brand) => set({ selectedBrand: brand }),
-  setSelectedSort: (sort) => set({ selectedSort: sort }),
+interface AppState {
+  // Unread counts
+  unreadNotifications: number;
+  unreadChats: number;
+  setUnreadNotifications: (count: number) => void;
+  setUnreadChats: (count: number) => void;
 
-  // Wishlist
-  wishlist: [],
-  addToWishlist: (deviceId, currentPrice) =>
-    set((state) => ({
-      wishlist: [
-        ...state.wishlist,
-        {
-          id: `w-${deviceId}`,
-          deviceId,
-          addedAt: new Date().toISOString(),
-          priceAtAdd: currentPrice,
-        },
-      ],
-    })),
-  removeFromWishlist: (deviceId) =>
-    set((state) => ({
-      wishlist: state.wishlist.filter((w) => w.deviceId !== deviceId),
-    })),
-  isWishlisted: (deviceId) => get().wishlist.some((w) => w.deviceId === deviceId),
-  setTargetPrice: (deviceId, price) =>
-    set((state) => ({
-      wishlist: state.wishlist.map((w) =>
-        w.deviceId === deviceId ? { ...w, targetPrice: price } : w
-      ),
-    })),
+  // Quote request draft (for multi-step form)
+  quoteDraft: QuoteDraft;
+  setQuoteDraft: (draft: Partial<QuoteDraft>) => void;
+  resetQuoteDraft: () => void;
+}
 
-  // Notifications
-  unreadCount: 3,
-  setUnreadCount: (count) => set({ unreadCount: count }),
+const DEFAULT_DRAFT: QuoteDraft = {
+  deviceId: null,
+  deviceName: null,
+  storage: null,
+  color: null,
+  carrier: null,
+  planType: null,
+  tradeInDevice: null,
+  tradeInCondition: null,
+  additionalNotes: null,
+};
 
-  // User
-  points: 780,
-  addPoints: (amount) => set((state) => ({ points: state.points + amount })),
+export const useStore = create<AppState>((set) => ({
+  // Unread counts
+  unreadNotifications: 2,
+  unreadChats: 1,
+  setUnreadNotifications: (count) => set({ unreadNotifications: count }),
+  setUnreadChats: (count) => set({ unreadChats: count }),
+
+  // Quote request draft
+  quoteDraft: { ...DEFAULT_DRAFT },
+  setQuoteDraft: (draft) =>
+    set((state) => ({
+      quoteDraft: { ...state.quoteDraft, ...draft },
+    })),
+  resetQuoteDraft: () => set({ quoteDraft: { ...DEFAULT_DRAFT } }),
 }));

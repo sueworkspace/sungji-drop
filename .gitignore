@@ -6,3 +6,5 @@ dist/
 .DS_Store
 .omc/
 test-results/
+.env
+supabase/.temp/

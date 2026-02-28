@@ -109,7 +109,7 @@ export function NeonButton({
         <PixelText
           size="label"
           color={isDisabled ? Colors.textMuted : v.text}
-          style={[{ fontSize: s.fontSize }, textStyle]}
+          style={[{ fontSize: s.fontSize }, textStyle as TextStyle]}
         >
           {label}
         </PixelText>

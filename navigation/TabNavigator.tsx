@@ -2,19 +2,13 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Text, StyleSheet, View } from 'react-native';
 import HomeScreen from '../screens/HomeScreen';
-import MapScreen from '../screens/MapScreen';
-import DisassembleScreen from '../screens/DisassembleScreen';
-import WishlistScreen from '../screens/WishlistScreen';
+import QuotesScreen from '../screens/QuotesScreen';
+import ChatListScreen from '../screens/ChatListScreen';
 import MyPageScreen from '../screens/MyPageScreen';
 import { Colors } from '../constants';
 
-export type TabParamList = {
-  Home: undefined;
-  Map: undefined;
-  Disassemble: undefined;
-  Wishlist: undefined;
-  MyPage: undefined;
-};
+export type { TabParamList } from './types';
+import { TabParamList } from './types';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 
@@ -40,28 +34,21 @@ export default function TabNavigator() {
         name="Home"
         component={HomeScreen}
         options={{
-          tabBarIcon: ({ focused }) => <TabIcon icon="▼" label="드롭" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon icon="▼" label="홈" focused={focused} />,
         }}
       />
       <Tab.Screen
-        name="Map"
-        component={MapScreen}
+        name="Quotes"
+        component={QuotesScreen}
         options={{
-          tabBarIcon: ({ focused }) => <TabIcon icon="◎" label="성지맵" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon icon="▦" label="견적함" focused={focused} />,
         }}
       />
       <Tab.Screen
-        name="Disassemble"
-        component={DisassembleScreen}
+        name="Chat"
+        component={ChatListScreen}
         options={{
-          tabBarIcon: ({ focused }) => <TabIcon icon="⚡" label="해체" focused={focused} />,
-        }}
-      />
-      <Tab.Screen
-        name="Wishlist"
-        component={WishlistScreen}
-        options={{
-          tabBarIcon: ({ focused }) => <TabIcon icon="★" label="찜" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon icon="◈" label="채팅" focused={focused} />,
         }}
       />
       <Tab.Screen

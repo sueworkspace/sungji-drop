@@ -1,21 +1,15 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import TabNavigator from './TabNavigator';
-import DealDetailScreen from '../screens/DealDetailScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
-import RankingScreen from '../screens/RankingScreen';
 import SettingsScreen from '../screens/SettingsScreen';
-import ReviewWriteScreen from '../screens/ReviewWriteScreen';
+import QuoteRequestScreen from '../screens/QuoteRequestScreen';
+import QuoteDetailScreen from '../screens/QuoteDetailScreen';
+import ChatRoomScreen from '../screens/ChatRoomScreen';
 import { Colors } from '../constants';
+import { RootStackParamList } from './types';
 
-export type RootStackParamList = {
-  Tabs: undefined;
-  DealDetail: { dealId: string };
-  Notifications: undefined;
-  Ranking: undefined;
-  Settings: undefined;
-  ReviewWrite: { storeId: string; storeName: string };
-};
+export type { RootStackParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -29,15 +23,11 @@ export default function RootNavigator() {
       }}
     >
       <Stack.Screen name="Tabs" component={TabNavigator} />
-      <Stack.Screen name="DealDetail" component={DealDetailScreen} />
+      <Stack.Screen name="QuoteRequest" component={QuoteRequestScreen} />
+      <Stack.Screen name="QuoteDetail" component={QuoteDetailScreen} />
+      <Stack.Screen name="ChatRoom" component={ChatRoomScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
-      <Stack.Screen name="Ranking" component={RankingScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
-      <Stack.Screen
-        name="ReviewWrite"
-        component={ReviewWriteScreen}
-        options={{ headerShown: false }}
-      />
     </Stack.Navigator>
   );
 }

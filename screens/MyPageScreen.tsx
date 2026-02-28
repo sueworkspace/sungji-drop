@@ -1,114 +1,129 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  Alert,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Spacing } from '../constants';
-import { userProfile, achievements, dailyMissions, formatPrice } from '../src/data/mock';
+import { PixelText } from '../components';
 import { RootStackParamList } from '../navigation/RootNavigator';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
+const MOCK_USER = {
+  nickname: '성지헌터',
+  phone: '010-****-5678',
+  stats: {
+    quoteRequests: 12,
+    completed: 8,
+    chats: 5,
+  },
+};
+
+interface MenuItem {
+  label: string;
+  screen?: keyof RootStackParamList;
+  color?: string;
+  onPress?: () => void;
+}
+
+const MENU_ITEMS: MenuItem[] = [
+  { label: '알림 설정', screen: 'Settings' },
+  { label: '이용약관' },
+  { label: '개인정보처리방침' },
+];
+
 export default function MyPageScreen() {
   const navigation = useNavigation<Nav>();
-  const progressPct = Math.round((userProfile.points / userProfile.nextRankPoints) * 100);
+
+  const handleLogout = () => {
+    Alert.alert('로그아웃', '정말 로그아웃 하시겠습니까?', [
+      { text: '취소', style: 'cancel' },
+      { text: '로그아웃', style: 'destructive', onPress: () => {} },
+    ]);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <PixelText size="section" color={Colors.dropGreen}>MY</PixelText>
+      </View>
+
       <ScrollView contentContainerStyle={{ paddingBottom: 30 }}>
-        {/* Profile */}
-        <View style={styles.profileSection}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarEmoji}>{userProfile.rank.icon}</Text>
+        {/* Profile Card */}
+        <View style={styles.profileCard}>
+          <View style={styles.avatarBox}>
+            <Text style={styles.avatarText}>🎮</Text>
           </View>
-          <Text style={styles.nickname}>{userProfile.nickname}</Text>
-          <View style={styles.rankBadge}>
-            <Text style={styles.rankText}>{userProfile.rank.name}</Text>
-          </View>
-        </View>
-
-        {/* Points & Progress */}
-        <View style={styles.pointsCard}>
-          <View style={styles.pointsHeader}>
-            <Text style={styles.pointsLabel}>POINTS</Text>
-            <Text style={styles.pointsValue}>{userProfile.points}</Text>
-          </View>
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${progressPct}%` }]} />
-          </View>
-          <Text style={styles.progressText}>
-            다음 등급까지 {formatPrice(userProfile.nextRankPoints - userProfile.points)}pt
-          </Text>
-        </View>
-
-        {/* Activity Summary */}
-        <View style={styles.activityRow}>
-          <View style={styles.activityItem}>
-            <Text style={styles.activityNum}>{userProfile.reviewCount}</Text>
-            <Text style={styles.activityLabel}>리뷰</Text>
-          </View>
-          <View style={styles.activityDivider} />
-          <View style={styles.activityItem}>
-            <Text style={styles.activityNum}>{userProfile.verifyCount}</Text>
-            <Text style={styles.activityLabel}>인증</Text>
-          </View>
-          <View style={styles.activityDivider} />
-          <View style={styles.activityItem}>
-            <Text style={[styles.activityNum, { color: Colors.saveGreen }]}>
-              {formatPrice(userProfile.totalSaved)}
-            </Text>
-            <Text style={styles.activityLabel}>절약 총액</Text>
+          <View style={styles.profileInfo}>
+            <Text style={styles.nickname}>{MOCK_USER.nickname}</Text>
+            <Text style={styles.phone}>{MOCK_USER.phone}</Text>
           </View>
         </View>
 
-        {/* Daily Missions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📋 오늘의 미션</Text>
-          {dailyMissions.map(m => (
-            <View key={m.id} style={styles.missionRow}>
-              <Text style={[styles.missionCheck, { color: m.completed ? Colors.dropGreen : '#444' }]}>
-                {m.completed ? '✓' : '○'}
-              </Text>
-              <Text style={[styles.missionText, m.completed && styles.missionDone]}>
-                {m.text}
-              </Text>
-              <Text style={styles.missionPts}>+{m.points}pt</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Achievements */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🏆 업적</Text>
-          <View style={styles.achieveGrid}>
-            {achievements.map(a => (
-              <View key={a.id} style={[styles.achieveItem, !a.unlocked && styles.achieveLocked]}>
-                <Text style={styles.achieveIcon}>{a.unlocked ? a.icon : '🔒'}</Text>
-                <Text style={[styles.achieveName, !a.unlocked && { color: '#444' }]}>{a.name}</Text>
-              </View>
-            ))}
+        {/* Stats Row */}
+        <View style={styles.statsRow}>
+          <View style={styles.statItem}>
+            <PixelText size="section" color={Colors.dropGreen}>
+              {MOCK_USER.stats.quoteRequests}
+            </PixelText>
+            <Text style={styles.statLabel}>견적요청</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <PixelText size="section" color={Colors.saveGreen}>
+              {MOCK_USER.stats.completed}
+            </PixelText>
+            <Text style={styles.statLabel}>완료</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <PixelText size="section" color={Colors.dealGold}>
+              {MOCK_USER.stats.chats}
+            </PixelText>
+            <Text style={styles.statLabel}>채팅</Text>
           </View>
         </View>
 
-        {/* Menu */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>● MENU</Text>
-          {[
-            { label: '내 리뷰 관리', screen: null },
-            { label: '가격 인증 내역', screen: null },
-            { label: '해체 결과 저장함', screen: null },
-            { label: '헌터 랭킹', screen: 'Ranking' as const },
-            { label: '설정', screen: 'Settings' as const },
-          ].map(item => (
+        {/* Menu Items */}
+        <View style={styles.menuSection}>
+          {MENU_ITEMS.map((item) => (
             <TouchableOpacity
               key={item.label}
               style={styles.menuItem}
-              onPress={() => item.screen && navigation.navigate(item.screen)}
+              onPress={() => {
+                if (item.screen) {
+                  navigation.navigate(item.screen as any);
+                }
+              }}
+              activeOpacity={0.7}
             >
-              <Text style={styles.menuText}>{item.label}</Text>
+              <Text style={[styles.menuLabel, item.color ? { color: item.color } : {}]}>
+                {item.label}
+              </Text>
               <Text style={styles.menuArrow}>→</Text>
             </TouchableOpacity>
           ))}
+
+          {/* Logout */}
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={handleLogout}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.menuLabel, { color: Colors.alertRed }]}>로그아웃</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* App Version */}
+        <View style={styles.versionRow}>
+          <PixelText size="badge" color={Colors.textMuted}>앱 버전 1.0.0</PixelText>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -117,75 +132,80 @@ export default function MyPageScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
+  header: {
+    paddingHorizontal: Spacing.base,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1a1a2e',
+  },
 
-  profileSection: { alignItems: 'center', paddingVertical: 24 },
-  avatar: {
-    width: 72, height: 72, borderRadius: 36,
-    backgroundColor: Colors.card, borderWidth: 2, borderColor: Colors.dropGreen,
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: Colors.dropGreen, shadowOpacity: 0.3, shadowRadius: 10,
+  profileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    margin: Spacing.base,
+    padding: Spacing.md,
+    backgroundColor: Colors.card,
+    borderWidth: 1,
+    borderColor: Colors.borderGreenMid,
   },
-  avatarEmoji: { fontSize: 36 },
-  nickname: { fontSize: 18, fontWeight: '700', color: '#fff', marginTop: 12 },
-  rankBadge: {
-    marginTop: 6, paddingHorizontal: 10, paddingVertical: 4,
-    backgroundColor: '#00FF8822', borderWidth: 1, borderColor: Colors.dropGreen,
+  avatarBox: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.deepDark,
+    borderWidth: 2,
+    borderColor: Colors.dropGreen,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: Colors.dropGreen,
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
-  rankText: { fontFamily: 'PressStart2P', fontSize: 7, color: Colors.dropGreen },
+  avatarText: { fontSize: 30 },
+  profileInfo: { flex: 1 },
+  nickname: {
+    fontFamily: 'NotoSansKR-Bold',
+    fontSize: 18,
+    color: Colors.textPrimary,
+    marginBottom: 4,
+  },
+  phone: { fontFamily: 'NotoSansKR', fontSize: 13, color: Colors.textMuted },
 
-  pointsCard: {
-    marginHorizontal: Spacing.base, padding: 16,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
+  statsRow: {
+    flexDirection: 'row',
+    marginHorizontal: Spacing.base,
+    backgroundColor: Colors.card,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingVertical: Spacing.md,
+    marginBottom: Spacing.lg,
   },
-  pointsHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  pointsLabel: { fontFamily: 'PressStart2P', fontSize: 8, color: '#888' },
-  pointsValue: { fontFamily: 'PressStart2P', fontSize: 16, color: Colors.dropGreen },
-  progressBar: {
-    height: 8, backgroundColor: '#222', overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%', backgroundColor: Colors.dropGreen,
-    shadowColor: Colors.dropGreen, shadowOpacity: 0.5, shadowRadius: 4,
-  },
-  progressText: { fontSize: 11, color: '#666', marginTop: 6 },
+  statItem: { flex: 1, alignItems: 'center', gap: 4 },
+  statLabel: { fontFamily: 'NotoSansKR', fontSize: 11, color: Colors.textMuted },
+  statDivider: { width: 1, backgroundColor: '#1a1a2e' },
 
-  activityRow: {
-    flexDirection: 'row', marginHorizontal: Spacing.base, marginTop: 12,
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
-    paddingVertical: 16,
+  menuSection: {
+    marginHorizontal: Spacing.base,
+    backgroundColor: Colors.card,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  activityItem: { flex: 1, alignItems: 'center' },
-  activityNum: { fontFamily: 'PressStart2P', fontSize: 12, color: Colors.dropGreen },
-  activityLabel: { fontSize: 11, color: '#666', marginTop: 4 },
-  activityDivider: { width: 1, backgroundColor: '#222' },
-
-  section: { paddingHorizontal: Spacing.base, marginTop: 24 },
-  sectionTitle: { fontFamily: 'PressStart2P', fontSize: 9, color: Colors.dropGreen, marginBottom: 12 },
-
-  missionRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#1a1a2e',
-  },
-  missionCheck: { fontFamily: 'PressStart2P', fontSize: 12 },
-  missionText: { flex: 1, fontSize: 13, color: '#ccc' },
-  missionDone: { color: '#666', textDecorationLine: 'line-through' },
-  missionPts: { fontFamily: 'PressStart2P', fontSize: 7, color: Colors.dealGold },
-
-  achieveGrid: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 10,
-  },
-  achieveItem: {
-    width: 90, height: 90, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: Colors.card, borderWidth: 1, borderColor: Colors.border,
-  },
-  achieveLocked: { opacity: 0.4 },
-  achieveIcon: { fontSize: 28, marginBottom: 4 },
-  achieveName: { fontFamily: 'PressStart2P', fontSize: 6, color: '#aaa', textAlign: 'center' },
-
   menuItem: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#1a1a2e',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1a1a2e',
   },
-  menuText: { fontSize: 15, color: '#ccc' },
-  menuArrow: { fontSize: 14, color: '#555' },
+  menuLabel: { fontFamily: 'NotoSansKR', fontSize: 15, color: Colors.textPrimary },
+  menuArrow: { fontSize: 14, color: Colors.textMuted },
+
+  versionRow: {
+    alignItems: 'center',
+    marginTop: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
 });
