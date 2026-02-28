@@ -72,6 +72,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setIsLoading(false);
       }
+    }).catch((e) => {
+      console.error('[AuthContext] getSession error:', e);
+      setIsLoading(false);
     });
 
     // 세션 변경 감지 (로그인/로그아웃/토큰 갱신)
@@ -119,19 +122,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signInWithEmail(email: string, password: string): Promise<{ error: Error | null }> {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      return { error: new Error(error.message) };
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        return { error: new Error(error.message) };
+      }
+      return { error: null };
+    } catch (e: any) {
+      console.error('[AuthContext] signInWithEmail network error:', e);
+      return { error: new Error(e?.message === 'Failed to fetch' ? '네트워크 연결을 확인해주세요. (Supabase 서버에 연결할 수 없습니다)' : (e?.message || '알 수 없는 오류가 발생했습니다.')) };
     }
-    return { error: null };
   }
 
   async function signUpWithEmail(email: string, password: string): Promise<{ error: Error | null }> {
-    const { error } = await supabase.auth.signUp({ email, password });
-    if (error) {
-      return { error: new Error(error.message) };
+    try {
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) {
+        return { error: new Error(error.message) };
+      }
+      return { error: null };
+    } catch (e: any) {
+      console.error('[AuthContext] signUpWithEmail network error:', e);
+      return { error: new Error(e?.message === 'Failed to fetch' ? '네트워크 연결을 확인해주세요. (Supabase 서버에 연결할 수 없습니다)' : (e?.message || '알 수 없는 오류가 발생했습니다.')) };
     }
-    return { error: null };
   }
 
   async function signOut(): Promise<void> {
