@@ -1,105 +1,95 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
   FlatList,
   TouchableOpacity,
   StyleSheet,
+  RefreshControl,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Spacing } from '../constants';
-import { PixelText, FilterChip, NeonButton } from '../components';
+import { PixelText, FilterChip, NeonButton, LoadingOverlay, ErrorBox } from '../components';
 import { RootStackParamList } from '../navigation/RootNavigator';
+import { useMyQuoteRequests, QuoteRequestWithDevice } from '../src/hooks/useMyQuoteRequests';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
-type QuoteStatus = 'open' | 'completed' | 'accepted' | 'expired';
+type FilterKey = '전체' | '입찰중' | '견적완료' | '수락됨';
 
-interface MockQuoteRequest {
-  id: string;
-  deviceName: string;
-  storage: string;
-  carrier: string;
-  status: QuoteStatus;
-  quoteCount: number;
-  bestPrice: number;
-  createdAt: string;
-}
-
-const MOCK_QUOTES: MockQuoteRequest[] = [
-  {
-    id: '1',
-    deviceName: 'Galaxy S25 Ultra',
-    storage: '256GB',
-    carrier: 'SKT',
-    status: 'open',
-    quoteCount: 3,
-    bestPrice: 890000,
-    createdAt: '2시간 전',
-  },
-  {
-    id: '2',
-    deviceName: 'iPhone 16 Pro',
-    storage: '128GB',
-    carrier: 'KT',
-    status: 'completed',
-    quoteCount: 7,
-    bestPrice: 1050000,
-    createdAt: '1일 전',
-  },
-  {
-    id: '3',
-    deviceName: 'Galaxy Z Fold 6',
-    storage: '512GB',
-    carrier: 'LG U+',
-    status: 'accepted',
-    quoteCount: 2,
-    bestPrice: 1320000,
-    createdAt: '3일 전',
-  },
-  {
-    id: '4',
-    deviceName: 'Galaxy A55',
-    storage: '128GB',
-    carrier: 'SKT',
-    status: 'expired',
-    quoteCount: 0,
-    bestPrice: 0,
-    createdAt: '5일 전',
-  },
-];
-
-const FILTERS: Array<{ key: QuoteStatus | '전체'; label: string }> = [
+const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: '전체', label: '전체' },
-  { key: 'open', label: '입찰중' },
-  { key: 'completed', label: '견적완료' },
-  { key: 'accepted', label: '수락됨' },
+  { key: '입찰중', label: '입찰중' },
+  { key: '견적완료', label: '견적완료' },
+  { key: '수락됨', label: '수락됨' },
 ];
 
-const STATUS_CONFIG: Record<QuoteStatus, { label: string; color: string; bg: string }> = {
+type QuoteStatus = 'open' | 'quoted' | 'accepted' | 'completed' | 'expired' | 'cancelled';
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   open: { label: '입찰중', color: Colors.dropGreen, bg: '#00FF8822' },
+  quoted: { label: '입찰중', color: Colors.dropGreen, bg: '#00FF8822' },
   completed: { label: '견적완료', color: Colors.dealGold, bg: '#FFD93D22' },
   accepted: { label: '수락됨', color: Colors.saveGreen, bg: '#6BCB7722' },
   expired: { label: '만료', color: Colors.textMuted, bg: '#33333344' },
+  cancelled: { label: '취소', color: Colors.textMuted, bg: '#33333344' },
 };
 
 function formatPrice(price: number) {
   return price.toLocaleString('ko-KR');
 }
 
+function formatRelativeTime(isoString: string): string {
+  const now = Date.now();
+  const then = new Date(isoString).getTime();
+  const diffMs = now - then;
+
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 1) return '방금 전';
+  if (minutes < 60) return `${minutes}분 전`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}시간 전`;
+
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}일 전`;
+
+  const months = Math.floor(days / 30);
+  return `${months}개월 전`;
+}
+
+function matchesFilter(status: string, filter: FilterKey): boolean {
+  if (filter === '전체') return true;
+  if (filter === '입찰중') return status === 'open' || status === 'quoted';
+  if (filter === '견적완료') return status === 'completed';
+  if (filter === '수락됨') return status === 'accepted';
+  return false;
+}
+
+function getBestPrice(item: QuoteRequestWithDevice): number {
+  if (!item.quotes || item.quotes.length === 0) return 0;
+  return Math.min(...item.quotes.map((q) => q.total_cost_24m));
+}
+
 export default function QuotesScreen() {
   const navigation = useNavigation<Nav>();
-  const [activeFilter, setActiveFilter] = useState<QuoteStatus | '전체'>('전체');
+  const { requests, isLoading, error, refetch } = useMyQuoteRequests();
+  const [activeFilter, setActiveFilter] = useState<FilterKey>('전체');
 
-  const filtered =
-    activeFilter === '전체'
-      ? MOCK_QUOTES
-      : MOCK_QUOTES.filter((q) => q.status === activeFilter);
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
 
-  const renderItem = ({ item }: { item: MockQuoteRequest }) => {
-    const statusCfg = STATUS_CONFIG[item.status];
+  const filtered = requests.filter((r) => matchesFilter(r.status, activeFilter));
+
+  const renderItem = ({ item }: { item: QuoteRequestWithDevice }) => {
+    const statusCfg = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.expired;
+    const bestPrice = getBestPrice(item);
     return (
       <TouchableOpacity
         style={styles.card}
@@ -107,7 +97,7 @@ export default function QuotesScreen() {
         activeOpacity={0.75}
       >
         <View style={styles.cardTop}>
-          <Text style={styles.deviceName}>{item.deviceName}</Text>
+          <Text style={styles.deviceName}>{item.devices?.name ?? '기기 정보 없음'}</Text>
           <View style={[styles.statusBadge, { backgroundColor: statusCfg.bg, borderColor: statusCfg.color }]}>
             <Text style={[styles.statusText, { color: statusCfg.color }]}>{statusCfg.label}</Text>
           </View>
@@ -117,22 +107,34 @@ export default function QuotesScreen() {
         </Text>
         <View style={styles.cardBottom}>
           <View style={styles.quoteCountBox}>
-            <PixelText size="badge" color={Colors.dropGreen}>{item.quoteCount}개</PixelText>
+            <PixelText size="badge" color={Colors.dropGreen}>{item.quote_count}개</PixelText>
             <Text style={styles.quoteCountLabel}> 견적 수신</Text>
           </View>
-          {item.bestPrice > 0 ? (
+          {bestPrice > 0 ? (
             <View style={styles.bestPriceBox}>
               <Text style={styles.bestPriceLabel}>최저</Text>
-              <Text style={styles.bestPriceValue}>₩{formatPrice(item.bestPrice)}</Text>
+              <Text style={styles.bestPriceValue}>₩{formatPrice(bestPrice)}</Text>
             </View>
           ) : (
             <Text style={styles.noPriceText}>견적 없음</Text>
           )}
         </View>
-        <Text style={styles.createdAt}>{item.createdAt}</Text>
+        <Text style={styles.createdAt}>{formatRelativeTime(item.created_at)}</Text>
       </TouchableOpacity>
     );
   };
+
+  // Full-screen loading on first load
+  if (isLoading && requests.length === 0) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <PixelText size="section" color={Colors.dropGreen}>견적함</PixelText>
+        </View>
+        <LoadingOverlay />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -147,12 +149,14 @@ export default function QuotesScreen() {
             key={f.key}
             label={f.label}
             selected={activeFilter === f.key}
-            onPress={() => setActiveFilter(f.key as QuoteStatus | '전체')}
+            onPress={() => setActiveFilter(f.key)}
           />
         ))}
       </View>
 
-      {filtered.length === 0 ? (
+      {error ? (
+        <ErrorBox message={error} onRetry={refetch} />
+      ) : filtered.length === 0 ? (
         <View style={styles.emptyContainer}>
           <PixelText size="label" color={Colors.textMuted}>아직 받은 견적이 없습니다</PixelText>
           <NeonButton
@@ -168,6 +172,14 @@ export default function QuotesScreen() {
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={Colors.dropGreen}
+              colors={[Colors.dropGreen]}
+            />
+          }
         />
       )}
     </SafeAreaView>

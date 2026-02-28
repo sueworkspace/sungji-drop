@@ -13,18 +13,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Spacing } from '../constants';
 import { PixelText } from '../components';
 import { RootStackParamList } from '../navigation/RootNavigator';
+import { useAuth } from '../src/contexts/AuthContext';
+import { useMyStats } from '../src/hooks/useMyStats';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
-
-const MOCK_USER = {
-  nickname: '성지헌터',
-  phone: '010-****-5678',
-  stats: {
-    quoteRequests: 12,
-    completed: 8,
-    chats: 5,
-  },
-};
 
 interface MenuItem {
   label: string;
@@ -41,11 +33,23 @@ const MENU_ITEMS: MenuItem[] = [
 
 export default function MyPageScreen() {
   const navigation = useNavigation<Nav>();
+  const { profile, signOut } = useAuth();
+  const { stats } = useMyStats();
+
+  const nickname = profile?.nickname ?? '사용자';
+  const phone = profile?.phone ?? '';
+  const avatarInitial = nickname.charAt(0) || '?';
 
   const handleLogout = () => {
     Alert.alert('로그아웃', '정말 로그아웃 하시겠습니까?', [
       { text: '취소', style: 'cancel' },
-      { text: '로그아웃', style: 'destructive', onPress: () => {} },
+      {
+        text: '로그아웃',
+        style: 'destructive',
+        onPress: async () => {
+          await signOut();
+        },
+      },
     ]);
   };
 
@@ -59,11 +63,11 @@ export default function MyPageScreen() {
         {/* Profile Card */}
         <View style={styles.profileCard}>
           <View style={styles.avatarBox}>
-            <Text style={styles.avatarText}>🎮</Text>
+            <Text style={styles.avatarText}>{avatarInitial}</Text>
           </View>
           <View style={styles.profileInfo}>
-            <Text style={styles.nickname}>{MOCK_USER.nickname}</Text>
-            <Text style={styles.phone}>{MOCK_USER.phone}</Text>
+            <Text style={styles.nickname}>{nickname}</Text>
+            {phone ? <Text style={styles.phone}>{phone}</Text> : null}
           </View>
         </View>
 
@@ -71,21 +75,21 @@ export default function MyPageScreen() {
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
             <PixelText size="section" color={Colors.dropGreen}>
-              {MOCK_USER.stats.quoteRequests}
+              {stats.totalRequests}
             </PixelText>
             <Text style={styles.statLabel}>견적요청</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
             <PixelText size="section" color={Colors.saveGreen}>
-              {MOCK_USER.stats.completed}
+              {stats.completed}
             </PixelText>
             <Text style={styles.statLabel}>완료</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
             <PixelText size="section" color={Colors.dealGold}>
-              {MOCK_USER.stats.chats}
+              {stats.activeChats}
             </PixelText>
             <Text style={styles.statLabel}>채팅</Text>
           </View>
@@ -162,7 +166,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
   },
-  avatarText: { fontSize: 30 },
+  avatarText: {
+    fontSize: 24,
+    fontFamily: 'PressStart2P',
+    color: Colors.dropGreen,
+  },
   profileInfo: { flex: 1 },
   nickname: {
     fontFamily: 'NotoSansKR-Bold',

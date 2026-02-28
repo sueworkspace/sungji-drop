@@ -10,148 +10,146 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Spacing } from '../constants';
-import { PixelText, Card, NeonButton } from '../components';
+import { PixelText, NeonButton, LoadingOverlay, ErrorBox } from '../components';
 import { RootStackParamList } from '../navigation/RootNavigator';
+import { useQuoteDetail, QuoteWithDealer } from '../src/hooks/useQuoteDetail';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type RouteP = RouteProp<RootStackParamList, 'QuoteDetail'>;
 
-interface DealerQuote {
-  id: string;
-  dealerName: string;
-  region: string;
-  rating: number;
-  reviewCount: number;
-  devicePrice: number;
-  monthlyFee: number;
-  subsidy: number;
-  total24m: number;
-  isBest: boolean;
-}
-
-const MOCK_REQUEST = {
-  id: '1',
-  deviceName: 'Galaxy S25 Ultra',
-  storage: '256GB',
-  color: '티타늄 블랙',
-  carrier: 'SKT',
-  planType: '5G 무제한',
-  createdAt: '2026.02.28',
-  status: 'open' as const,
-  quoteCount: 3,
-};
-
-const MOCK_QUOTES: DealerQuote[] = [
-  {
-    id: 'q1',
-    dealerName: '명동 스마트폰 성지',
-    region: '서울 중구',
-    rating: 4.8,
-    reviewCount: 234,
-    devicePrice: 890000,
-    monthlyFee: 89000,
-    subsidy: 150000,
-    total24m: 2276000,
-    isBest: true,
-  },
-  {
-    id: 'q2',
-    dealerName: '강남 폰 센터',
-    region: '서울 강남',
-    rating: 4.5,
-    reviewCount: 112,
-    devicePrice: 950000,
-    monthlyFee: 89000,
-    subsidy: 100000,
-    total24m: 2386000,
-    isBest: false,
-  },
-  {
-    id: 'q3',
-    dealerName: '홍대 모바일 샵',
-    region: '서울 마포',
-    rating: 4.2,
-    reviewCount: 67,
-    devicePrice: 920000,
-    monthlyFee: 95000,
-    subsidy: 120000,
-    total24m: 2400000,
-    isBest: false,
-  },
-];
-
-const STATUS_CONFIG = {
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   open: { label: '입찰중', color: Colors.dropGreen, bg: '#00FF8822' },
+  quoted: { label: '입찰중', color: Colors.dropGreen, bg: '#00FF8822' },
   completed: { label: '견적완료', color: Colors.dealGold, bg: '#FFD93D22' },
+  accepted: { label: '수락됨', color: Colors.saveGreen, bg: '#6BCB7722' },
   expired: { label: '만료', color: Colors.textMuted, bg: '#33333333' },
+  cancelled: { label: '취소', color: Colors.textMuted, bg: '#33333333' },
 };
 
 function formatPrice(price: number) {
   return price.toLocaleString('ko-KR');
 }
 
+function formatDate(isoString: string): string {
+  const d = new Date(isoString);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}.${m}.${day}`;
+}
+
 export default function QuoteDetailScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<RouteP>();
+  const { request, quotes, isLoading, error, refetch } = useQuoteDetail(route.params?.requestId);
 
-  const request = MOCK_REQUEST;
-  const quotes = MOCK_QUOTES;
-  const statusCfg = STATUS_CONFIG[request.status];
-
-  const renderQuote = ({ item, index }: { item: DealerQuote; index: number }) => (
-    <View style={[styles.quoteCard, item.isBest && styles.quoteCardBest]}>
-      {item.isBest && (
-        <View style={styles.bestLabel}>
-          <PixelText size="badge" color={Colors.textInverse}>BEST</PixelText>
+  // Loading state
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <PixelText size="label" color={Colors.textSecondary}>←</PixelText>
+          </TouchableOpacity>
+          <PixelText size="section" color={Colors.dropGreen}>견적 상세</PixelText>
+          <View style={{ width: 24 }} />
         </View>
-      )}
-      <View style={styles.quoteTop}>
-        <View style={styles.dealerInfo}>
-          <Text style={styles.dealerName}>{item.dealerName}</Text>
-          <Text style={styles.dealerRegion}>{item.region}</Text>
-          <View style={styles.ratingRow}>
-            <Text style={styles.ratingText}>★ {item.rating}</Text>
-            <Text style={styles.reviewCount}>({item.reviewCount}개 리뷰)</Text>
+        <LoadingOverlay />
+      </SafeAreaView>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <PixelText size="label" color={Colors.textSecondary}>←</PixelText>
+          </TouchableOpacity>
+          <PixelText size="section" color={Colors.dropGreen}>견적 상세</PixelText>
+          <View style={{ width: 24 }} />
+        </View>
+        <ErrorBox message={error} onRetry={refetch} />
+      </SafeAreaView>
+    );
+  }
+
+  // Null guard
+  if (!request) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <PixelText size="label" color={Colors.textSecondary}>←</PixelText>
+          </TouchableOpacity>
+          <PixelText size="section" color={Colors.dropGreen}>견적 상세</PixelText>
+          <View style={{ width: 24 }} />
+        </View>
+        <ErrorBox message="견적 요청을 찾을 수 없습니다." />
+      </SafeAreaView>
+    );
+  }
+
+  const statusCfg = STATUS_CONFIG[request.status] ?? STATUS_CONFIG.expired;
+
+  const renderQuote = ({ item, index }: { item: QuoteWithDealer; index: number }) => {
+    const isBest = index === 0; // Already sorted by total_cost_24m ascending from hook
+    return (
+      <View style={[styles.quoteCard, isBest && styles.quoteCardBest]}>
+        {isBest && (
+          <View style={styles.bestLabel}>
+            <PixelText size="badge" color={Colors.textInverse}>BEST</PixelText>
+          </View>
+        )}
+        <View style={styles.quoteTop}>
+          <View style={styles.dealerInfo}>
+            <Text style={styles.dealerName}>{item.dealers?.store_name ?? '딜러 정보 없음'}</Text>
+            <Text style={styles.dealerRegion}>{item.dealers?.region ?? ''}</Text>
+            <View style={styles.ratingRow}>
+              <Text style={styles.ratingText}>★ {item.dealers?.rating?.toFixed(1) ?? '0.0'}</Text>
+              <Text style={styles.reviewCount}>({item.dealers?.review_count ?? 0}개 리뷰)</Text>
+            </View>
+          </View>
+          <View style={styles.priceColumn}>
+            <PixelText size="section" color={Colors.dropGreen}>
+              ₩{formatPrice(item.total_cost_24m)}
+            </PixelText>
+            <Text style={styles.priceNote}>24개월 총합</Text>
           </View>
         </View>
-        <View style={styles.priceColumn}>
-          <PixelText size="section" color={Colors.dropGreen}>
-            ₩{formatPrice(item.total24m)}
-          </PixelText>
-          <Text style={styles.priceNote}>24개월 총합</Text>
-        </View>
-      </View>
 
-      <View style={styles.quotePriceBreakdown}>
-        <View style={styles.priceRow}>
-          <Text style={styles.priceLabel}>기기값</Text>
-          <Text style={styles.priceValue}>₩{formatPrice(item.devicePrice)}</Text>
+        <View style={styles.quotePriceBreakdown}>
+          <View style={styles.priceRow}>
+            <Text style={styles.priceLabel}>기기값</Text>
+            <Text style={styles.priceValue}>₩{formatPrice(item.device_price)}</Text>
+          </View>
+          <View style={styles.priceRow}>
+            <Text style={styles.priceLabel}>월 요금</Text>
+            <Text style={styles.priceValue}>₩{formatPrice(item.monthly_fee)}/월</Text>
+          </View>
+          <View style={styles.priceRow}>
+            <Text style={styles.priceLabel}>공시지원금</Text>
+            <Text style={[styles.priceValue, { color: Colors.dropGreen }]}>
+              -₩{formatPrice(item.subsidy)}
+            </Text>
+          </View>
         </View>
-        <View style={styles.priceRow}>
-          <Text style={styles.priceLabel}>월 요금</Text>
-          <Text style={styles.priceValue}>₩{formatPrice(item.monthlyFee)}/월</Text>
-        </View>
-        <View style={styles.priceRow}>
-          <Text style={styles.priceLabel}>공시지원금</Text>
-          <Text style={[styles.priceValue, { color: Colors.dropGreen }]}>
-            -₩{formatPrice(item.subsidy)}
-          </Text>
-        </View>
-      </View>
 
-      <NeonButton
-        label="채팅하기 ◈"
-        onPress={() =>
-          navigation.navigate('ChatRoom', {
-            roomId: item.id,
-            dealerName: item.dealerName,
-          })
-        }
-        size="md"
-        style={styles.chatButton}
-      />
-    </View>
-  );
+        <NeonButton
+          label="채팅하기 ◈"
+          onPress={() =>
+            navigation.navigate('ChatRoom', {
+              roomId: item.id,
+              dealerName: item.dealers?.store_name ?? '딜러',
+            })
+          }
+          size="md"
+          style={styles.chatButton}
+        />
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -173,7 +171,7 @@ export default function QuoteDetailScreen() {
             {/* Request Info Card */}
             <View style={styles.requestCard}>
               <View style={styles.requestCardTop}>
-                <Text style={styles.requestDeviceName}>{request.deviceName}</Text>
+                <Text style={styles.requestDeviceName}>{request.devices?.name ?? '기기 정보 없음'}</Text>
                 <View style={[styles.statusBadge, { backgroundColor: statusCfg.bg, borderColor: statusCfg.color }]}>
                   <Text style={[styles.statusText, { color: statusCfg.color }]}>{statusCfg.label}</Text>
                 </View>
@@ -183,7 +181,7 @@ export default function QuoteDetailScreen() {
                   { label: '용량', value: request.storage },
                   { label: '색상', value: request.color },
                   { label: '통신사', value: request.carrier },
-                  { label: '요금제', value: request.planType },
+                  { label: '요금제', value: request.plan_type },
                 ].map((row) => (
                   <View key={row.label} style={styles.requestDetailRow}>
                     <PixelText size="badge" color={Colors.textMuted}>{row.label}</PixelText>
@@ -191,7 +189,7 @@ export default function QuoteDetailScreen() {
                   </View>
                 ))}
               </View>
-              <Text style={styles.requestDate}>요청일: {request.createdAt}</Text>
+              <Text style={styles.requestDate}>요청일: {formatDate(request.created_at)}</Text>
             </View>
 
             <View style={styles.quotesHeader}>

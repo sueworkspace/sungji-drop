@@ -39,8 +39,8 @@ const DEFAULT_DRAFT: QuoteDraft = {
 
 export const useStore = create<AppState>((set) => ({
   // Unread counts
-  unreadNotifications: 2,
-  unreadChats: 1,
+  unreadNotifications: 0,
+  unreadChats: 0,
   setUnreadNotifications: (count) => set({ unreadNotifications: count }),
   setUnreadChats: (count) => set({ unreadChats: count }),
 

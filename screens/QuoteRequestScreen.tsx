@@ -6,42 +6,33 @@ import {
   TouchableOpacity,
   TextInput,
   StyleSheet,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Spacing } from '../constants';
 import { PixelText, NeonButton } from '../components';
+import { useDevices } from '../src/hooks/useDevices';
+import { supabase, getCurrentUserId } from '../src/lib/supabase';
 
 const TOTAL_STEPS = 5;
 
-const POPULAR_DEVICES = [
-  { id: 'd1', name: 'Galaxy S25 Ultra', brand: '삼성' },
-  { id: 'd2', name: 'Galaxy S25+', brand: '삼성' },
-  { id: 'd3', name: 'Galaxy S25', brand: '삼성' },
-  { id: 'd4', name: 'Galaxy Z Fold 6', brand: '삼성' },
-  { id: 'd5', name: 'Galaxy Z Flip 6', brand: '삼성' },
-  { id: 'd6', name: 'iPhone 16 Pro Max', brand: '애플' },
-  { id: 'd7', name: 'iPhone 16 Pro', brand: '애플' },
-  { id: 'd8', name: 'iPhone 16', brand: '애플' },
-  { id: 'd9', name: 'iPhone 15', brand: '애플' },
-  { id: 'd10', name: 'Galaxy A55', brand: '삼성' },
-];
-
-const STORAGES = ['64GB', '128GB', '256GB', '512GB', '1TB'];
-const COLORS: Record<string, string[]> = {
-  'd1': ['티타늄 블랙', '티타늄 그레이', '티타늄 실버화이트'],
-  'd6': ['블랙 티타늄', '화이트 티타늄', '내추럴 티타늄', '데저트 티타늄'],
-  default: ['블랙', '화이트', '블루', '그린', '퍼플'],
-};
-const CARRIERS = ['SKT', 'KT', 'LG U+', '알뜰폰'];
-const PLAN_TYPES = ['5G 무제한', '5G 시그니처', '5G 슬림', 'LTE 무제한', 'LTE 베이직', '자급제 (요금제 없음)'];
+const CARRIERS = ['SKT', 'KT', 'LG U+', '\uC54C\uB730\uD3F0'];
+const PLAN_TYPES = ['5G \uBB34\uC81C\uD55C', '5G \uC2DC\uADF8\uB2C8\uCC98', '5G \uC2AC\uB9BC', 'LTE \uBB34\uC81C\uD55C', 'LTE \uBCA0\uC774\uC9C1', '\uC790\uAE09\uC81C (\uC694\uAE08\uC81C \uC5C6\uC74C)'];
 const TRADE_IN_DEVICES = [
-  '없음 (보상판매 안함)',
+  '\uC5C6\uC74C (\uBCF4\uC0C1\uD310\uB9E4 \uC548\uD568)',
   'Galaxy S24 Ultra', 'Galaxy S24+', 'Galaxy S24',
   'iPhone 15 Pro Max', 'iPhone 15 Pro', 'iPhone 15',
-  '기타',
+  '\uAE30\uD0C0',
 ];
-const TRADE_IN_CONDITIONS = ['완전 새 제품 (미개봉)', '최상 (스크래치 없음)', '상 (미세 스크래치)', '중 (사용감 있음)', '하 (파손/수리 이력)'];
+const TRADE_IN_CONDITIONS = ['\uC644\uC804 \uC0C8 \uC81C\uD488 (\uBBF8\uAC1C\uBD09)', '\uCD5C\uC0C1 (\uC2A4\uD06C\uB798\uCE58 \uC5C6\uC74C)', '\uC0C1 (\uBBF8\uC138 \uC2A4\uD06C\uB798\uCE58)', '\uC911 (\uC0AC\uC6A9\uAC10 \uC788\uC74C)', '\uD558 (\uD30C\uC190/\uC218\uB9AC \uC774\uB825)'];
+
+const BRAND_LABEL: Record<string, string> = {
+  samsung: '\uC0BC\uC131',
+  apple: '\uC560\uD50C',
+  google: '\uAD6C\uAE00',
+  other: '\uAE30\uD0C0',
+};
 
 interface FormState {
   deviceId: string | null;
@@ -55,11 +46,14 @@ interface FormState {
   additionalNotes: string;
 }
 
-const STEP_TITLES = ['기기 선택', '옵션 선택', '통신사/요금제', '보상판매', '확인 & 등록'];
+const STEP_TITLES = ['\uAE30\uAE30 \uC120\uD0DD', '\uC635\uC158 \uC120\uD0DD', '\uD1B5\uC2E0\uC0AC/\uC694\uAE08\uC81C', '\uBCF4\uC0C1\uD310\uB9E4', '\uD655\uC778 & \uB4F1\uB85D'];
 
 export default function QuoteRequestScreen() {
   const navigation = useNavigation();
+  const { devices, isLoading: devicesLoading } = useDevices();
   const [currentStep, setCurrentStep] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>({
     deviceId: null,
     deviceName: null,
@@ -83,10 +77,7 @@ export default function QuoteRequestScreen() {
     if (currentStep > 1) setCurrentStep((s) => s - 1);
   };
 
-  const getColors = () => {
-    if (!form.deviceId) return COLORS.default;
-    return COLORS[form.deviceId] ?? COLORS.default;
-  };
+  const selectedDevice = devices.find((d) => d.id === form.deviceId);
 
   const canProceed = () => {
     switch (currentStep) {
@@ -99,9 +90,70 @@ export default function QuoteRequestScreen() {
     }
   };
 
-  const handleSubmit = () => {
-    // Placeholder: will integrate with API later
+  const handleSubmit = async () => {
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      setSubmitError('\uB85C\uADF8\uC778\uC774 \uD544\uC694\uD569\uB2C8\uB2E4.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Map carrier: UI uses 'LG U+' but DB CHECK constraint expects 'LGU+'
+    const carrierMap: Record<string, string> = { 'LG U+': 'LGU+' };
+    const carrierValue = carrierMap[form.carrier ?? ''] || form.carrier;
+
+    // Map trade-in condition to DB codes
+    const conditionMap: Record<string, string> = {
+      '\uC644\uC804 \uC0C8 \uC81C\uD488 (\uBBF8\uAC1C\uBD09)': 'S',
+      '\uCD5C\uC0C1 (\uC2A4\uD06C\uB798\uCE58 \uC5C6\uC74C)': 'A',
+      '\uC0C1 (\uBBF8\uC138 \uC2A4\uD06C\uB798\uCE58)': 'B',
+      '\uC911 (\uC0AC\uC6A9\uAC10 \uC788\uC74C)': 'C',
+      '\uD558 (\uD30C\uC190/\uC218\uB9AC \uC774\uB825)': 'C',
+    };
+
+    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
+
+    const { data, error } = await supabase
+      .from('quote_requests')
+      .insert({
+        user_id: userId,
+        device_id: form.deviceId!,
+        storage: form.storage!,
+        color: form.color!,
+        carrier: carrierValue as 'SKT' | 'KT' | 'LGU+' | '\uC54C\uB730\uD3F0',
+        plan_type: form.planType!,
+        trade_in_device: form.tradeInDevice === '\uC5C6\uC74C (\uBCF4\uC0C1\uD310\uB9E4 \uC548\uD568)' ? null : (form.tradeInDevice || null),
+        trade_in_condition: form.tradeInCondition ? (conditionMap[form.tradeInCondition] as 'S' | 'A' | 'B' | 'C' || null) : null,
+        additional_notes: form.additionalNotes || null,
+        expires_at: expiresAt,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      setSubmitError(error.message);
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Generate mock quotes (will fail silently if RPC doesn't exist yet)
+    if (data) {
+      try {
+        await (supabase.rpc as any)('generate_mock_quotes', { p_request_id: (data as any).id });
+      } catch (e) {
+        console.warn('Mock quote generation skipped:', e);
+      }
+    }
+
+    setIsSubmitting(false);
     navigation.goBack();
+  };
+
+  const formatPrice = (price: number) => {
+    return price.toLocaleString('ko-KR') + '\uC6D0';
   };
 
   return (
@@ -109,9 +161,9 @@ export default function QuoteRequestScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <PixelText size="label" color={Colors.textSecondary}>←</PixelText>
+          <PixelText size="label" color={Colors.textSecondary}>{'\u2190'}</PixelText>
         </TouchableOpacity>
-        <PixelText size="section" color={Colors.dropGreen}>견적 요청</PixelText>
+        <PixelText size="section" color={Colors.dropGreen}>{'\uACAC\uC801 \uC694\uCCAD'}</PixelText>
         <View style={{ width: 24 }} />
       </View>
 
@@ -135,38 +187,47 @@ export default function QuoteRequestScreen() {
         {/* Step 1: Device Selection */}
         {currentStep === 1 && (
           <View style={styles.optionGrid}>
-            {POPULAR_DEVICES.map((device) => (
-              <TouchableOpacity
-                key={device.id}
-                style={[
-                  styles.deviceOption,
-                  form.deviceId === device.id && styles.deviceOptionSelected,
-                ]}
-                onPress={() => {
-                  setField('deviceId', device.id);
-                  setField('deviceName', device.name);
-                  setField('color', null);
-                }}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.deviceBrandTag}>{device.brand}</Text>
-                <Text style={[
-                  styles.deviceOptionName,
-                  form.deviceId === device.id && { color: Colors.dropGreen },
-                ]}>
-                  {device.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {devicesLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={Colors.dropGreen} />
+                <Text style={styles.loadingText}>{'\uAE30\uAE30 \uBAA9\uB85D\uC744 \uBD88\uB7EC\uC624\uB294 \uC911...'}</Text>
+              </View>
+            ) : (
+              devices.map((device) => (
+                <TouchableOpacity
+                  key={device.id}
+                  style={[
+                    styles.deviceOption,
+                    form.deviceId === device.id && styles.deviceOptionSelected,
+                  ]}
+                  onPress={() => {
+                    setField('deviceId', device.id);
+                    setField('deviceName', device.name);
+                    setField('storage', null);
+                    setField('color', null);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.deviceBrandTag}>{BRAND_LABEL[device.brand] ?? device.brand}</Text>
+                  <Text style={[
+                    styles.deviceOptionName,
+                    form.deviceId === device.id && { color: Colors.dropGreen },
+                  ]}>
+                    {device.name}
+                  </Text>
+                  <Text style={styles.devicePrice}>{formatPrice(device.original_price)}</Text>
+                </TouchableOpacity>
+              ))
+            )}
           </View>
         )}
 
         {/* Step 2: Options */}
         {currentStep === 2 && (
           <View style={styles.optionsContainer}>
-            <Text style={styles.optionLabel}>용량</Text>
+            <Text style={styles.optionLabel}>{'\uC6A9\uB7C9'}</Text>
             <View style={styles.chipRow}>
-              {STORAGES.map((s) => (
+              {(selectedDevice?.storage_options ?? []).map((s) => (
                 <TouchableOpacity
                   key={s}
                   style={[styles.chip, form.storage === s && styles.chipSelected]}
@@ -177,9 +238,9 @@ export default function QuoteRequestScreen() {
               ))}
             </View>
 
-            <Text style={[styles.optionLabel, { marginTop: Spacing.md }]}>색상</Text>
+            <Text style={[styles.optionLabel, { marginTop: Spacing.md }]}>{'\uC0C9\uC0C1'}</Text>
             <View style={styles.chipRow}>
-              {getColors().map((c) => (
+              {(selectedDevice?.color_options ?? []).map((c) => (
                 <TouchableOpacity
                   key={c}
                   style={[styles.chip, form.color === c && styles.chipSelected]}
@@ -195,7 +256,7 @@ export default function QuoteRequestScreen() {
         {/* Step 3: Carrier & Plan */}
         {currentStep === 3 && (
           <View style={styles.optionsContainer}>
-            <Text style={styles.optionLabel}>통신사</Text>
+            <Text style={styles.optionLabel}>{'\uD1B5\uC2E0\uC0AC'}</Text>
             <View style={styles.chipRow}>
               {CARRIERS.map((c) => (
                 <TouchableOpacity
@@ -208,7 +269,7 @@ export default function QuoteRequestScreen() {
               ))}
             </View>
 
-            <Text style={[styles.optionLabel, { marginTop: Spacing.md }]}>요금제 유형</Text>
+            <Text style={[styles.optionLabel, { marginTop: Spacing.md }]}>{'\uC694\uAE08\uC81C \uC720\uD615'}</Text>
             <View style={styles.listOptions}>
               {PLAN_TYPES.map((p) => (
                 <TouchableOpacity
@@ -219,7 +280,7 @@ export default function QuoteRequestScreen() {
                   <Text style={[styles.listOptionText, form.planType === p && { color: Colors.dropGreen }]}>
                     {p}
                   </Text>
-                  {form.planType === p && <Text style={styles.checkmark}>✓</Text>}
+                  {form.planType === p && <Text style={styles.checkmark}>{'\u2713'}</Text>}
                 </TouchableOpacity>
               ))}
             </View>
@@ -229,7 +290,7 @@ export default function QuoteRequestScreen() {
         {/* Step 4: Trade-in */}
         {currentStep === 4 && (
           <View style={styles.optionsContainer}>
-            <Text style={styles.optionLabel}>보상판매 기기</Text>
+            <Text style={styles.optionLabel}>{'\uBCF4\uC0C1\uD310\uB9E4 \uAE30\uAE30'}</Text>
             <View style={styles.listOptions}>
               {TRADE_IN_DEVICES.map((d) => (
                 <TouchableOpacity
@@ -237,20 +298,20 @@ export default function QuoteRequestScreen() {
                   style={[styles.listOption, form.tradeInDevice === d && styles.listOptionSelected]}
                   onPress={() => {
                     setField('tradeInDevice', d);
-                    if (d === '없음 (보상판매 안함)') setField('tradeInCondition', null);
+                    if (d === '\uC5C6\uC74C (\uBCF4\uC0C1\uD310\uB9E4 \uC548\uD568)') setField('tradeInCondition', null);
                   }}
                 >
                   <Text style={[styles.listOptionText, form.tradeInDevice === d && { color: Colors.dropGreen }]}>
                     {d}
                   </Text>
-                  {form.tradeInDevice === d && <Text style={styles.checkmark}>✓</Text>}
+                  {form.tradeInDevice === d && <Text style={styles.checkmark}>{'\u2713'}</Text>}
                 </TouchableOpacity>
               ))}
             </View>
 
-            {form.tradeInDevice && form.tradeInDevice !== '없음 (보상판매 안함)' && (
+            {form.tradeInDevice && form.tradeInDevice !== '\uC5C6\uC74C (\uBCF4\uC0C1\uD310\uB9E4 \uC548\uD568)' && (
               <>
-                <Text style={[styles.optionLabel, { marginTop: Spacing.md }]}>기기 상태</Text>
+                <Text style={[styles.optionLabel, { marginTop: Spacing.md }]}>{'\uAE30\uAE30 \uC0C1\uD0DC'}</Text>
                 <View style={styles.listOptions}>
                   {TRADE_IN_CONDITIONS.map((c) => (
                     <TouchableOpacity
@@ -261,7 +322,7 @@ export default function QuoteRequestScreen() {
                       <Text style={[styles.listOptionText, form.tradeInCondition === c && { color: Colors.dropGreen }]}>
                         {c}
                       </Text>
-                      {form.tradeInCondition === c && <Text style={styles.checkmark}>✓</Text>}
+                      {form.tradeInCondition === c && <Text style={styles.checkmark}>{'\u2713'}</Text>}
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -274,18 +335,18 @@ export default function QuoteRequestScreen() {
         {currentStep === 5 && (
           <View style={styles.summaryContainer}>
             <PixelText size="label" color={Colors.dropGreen} style={styles.summaryTitle}>
-              견적 요청 내용 확인
+              {'\uACAC\uC801 \uC694\uCCAD \uB0B4\uC6A9 \uD655\uC778'}
             </PixelText>
 
             <View style={styles.summaryCard}>
               {[
-                { label: '기기', value: form.deviceName ?? '-' },
-                { label: '용량', value: form.storage ?? '-' },
-                { label: '색상', value: form.color ?? '-' },
-                { label: '통신사', value: form.carrier ?? '-' },
-                { label: '요금제', value: form.planType ?? '-' },
-                { label: '보상판매', value: form.tradeInDevice ?? '-' },
-                form.tradeInCondition ? { label: '기기상태', value: form.tradeInCondition } : null,
+                { label: '\uAE30\uAE30', value: form.deviceName ?? '-' },
+                { label: '\uC6A9\uB7C9', value: form.storage ?? '-' },
+                { label: '\uC0C9\uC0C1', value: form.color ?? '-' },
+                { label: '\uD1B5\uC2E0\uC0AC', value: form.carrier ?? '-' },
+                { label: '\uC694\uAE08\uC81C', value: form.planType ?? '-' },
+                { label: '\uBCF4\uC0C1\uD310\uB9E4', value: form.tradeInDevice ?? '-' },
+                form.tradeInCondition ? { label: '\uAE30\uAE30\uC0C1\uD0DC', value: form.tradeInCondition } : null,
               ]
                 .filter(Boolean)
                 .map((row) => (
@@ -296,23 +357,29 @@ export default function QuoteRequestScreen() {
                 ))}
             </View>
 
-            <Text style={styles.notesLabel}>추가 요청사항 (선택)</Text>
+            <Text style={styles.notesLabel}>{'\uCD94\uAC00 \uC694\uCCAD\uC0AC\uD56D (\uC120\uD0DD)'}</Text>
             <TextInput
               style={styles.notesInput}
               value={form.additionalNotes}
               onChangeText={(t) => setField('additionalNotes', t)}
-              placeholder="예: 색상 우선, 최대한 빨리, 특정 요금제 문의 등"
+              placeholder={'\uC608: \uC0C9\uC0C1 \uC6B0\uC120, \uCD5C\uB300\uD55C \uBE68\uB9AC, \uD2B9\uC815 \uC694\uAE08\uC81C \uBB38\uC758 \uB4F1'}
               placeholderTextColor={Colors.textMuted}
               multiline
               numberOfLines={3}
               textAlignVertical="top"
             />
 
+            {submitError && (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{submitError}</Text>
+              </View>
+            )}
+
             <NeonButton
-              label="견적 요청하기 ▼"
-              onPress={handleSubmit}
+              label={isSubmitting ? '\uC694\uCCAD \uC911...' : '\uACAC\uC801 \uC694\uCCAD\uD558\uAE30 \u25BC'}
+              onPress={isSubmitting ? undefined : handleSubmit}
               size="lg"
-              style={{ marginTop: Spacing.lg }}
+              style={{ marginTop: Spacing.lg, opacity: isSubmitting ? 0.6 : 1 }}
             />
           </View>
         )}
@@ -323,7 +390,7 @@ export default function QuoteRequestScreen() {
         <View style={styles.navButtons}>
           {currentStep > 1 && (
             <TouchableOpacity style={styles.prevButton} onPress={goPrev}>
-              <PixelText size="label" color={Colors.textSecondary}>← 이전</PixelText>
+              <PixelText size="label" color={Colors.textSecondary}>{'\u2190 \uC774\uC804'}</PixelText>
             </TouchableOpacity>
           )}
           <TouchableOpacity
@@ -332,7 +399,7 @@ export default function QuoteRequestScreen() {
             activeOpacity={canProceed() ? 0.7 : 1}
           >
             <PixelText size="label" color={canProceed() ? Colors.textInverse : Colors.textMuted}>
-              다음 →
+              {'\uB2E4\uC74C \u2192'}
             </PixelText>
           </TouchableOpacity>
         </View>
@@ -408,6 +475,7 @@ const styles = StyleSheet.create({
   },
   deviceBrandTag: { fontFamily: 'PressStart2P', fontSize: 6, color: Colors.textMuted, marginBottom: 4 },
   deviceOptionName: { fontFamily: 'NotoSansKR-Bold', fontSize: 13, color: Colors.textPrimary },
+  devicePrice: { fontFamily: 'NotoSansKR', fontSize: 11, color: Colors.textMuted, marginTop: 2 },
 
   optionsContainer: { paddingTop: Spacing.sm },
   optionLabel: { fontFamily: 'PressStart2P', fontSize: 7, color: Colors.textMuted, marginBottom: Spacing.sm },
@@ -467,6 +535,31 @@ const styles = StyleSheet.create({
     fontFamily: 'NotoSansKR',
     fontSize: 14,
     minHeight: 80,
+  },
+
+  errorBox: {
+    backgroundColor: Colors.redOverlay,
+    borderWidth: 1,
+    borderColor: Colors.alertRed,
+    padding: Spacing.md,
+    marginTop: Spacing.md,
+  },
+  errorText: {
+    fontFamily: 'NotoSansKR',
+    fontSize: 13,
+    color: Colors.alertRed,
+  },
+
+  loadingContainer: {
+    width: '100%',
+    alignItems: 'center',
+    paddingVertical: Spacing.lg,
+    gap: Spacing.md,
+  },
+  loadingText: {
+    fontFamily: 'NotoSansKR',
+    fontSize: 14,
+    color: Colors.textMuted,
   },
 
   navButtons: {
