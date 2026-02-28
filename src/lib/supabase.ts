@@ -6,8 +6,8 @@
 // 참조: /.env.example
 // ============================================================
 
+import { Platform } from 'react-native';
 import { createClient } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Database } from './supabase-types';
 
 // ------------------------------------------------------------
@@ -17,16 +17,40 @@ const supabaseUrl = 'https://okrmviftqsrqjfxapyxm.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9rcm12aWZ0cXNycWpmeGFweXhtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyMTg2MjksImV4cCI6MjA4Nzc5NDYyOX0.Duk13orD42EFLEgBJ8Fj7YnpsfS3H_R61TaIOhXzlrw';
 
 // ------------------------------------------------------------
+// 플랫폼별 스토리지 설정
+// 웹: localStorage, 모바일: AsyncStorage
+// ------------------------------------------------------------
+function getStorage() {
+  if (Platform.OS === 'web') {
+    return {
+      getItem: (key: string) => {
+        const value = localStorage.getItem(key);
+        return Promise.resolve(value);
+      },
+      setItem: (key: string, value: string) => {
+        localStorage.setItem(key, value);
+        return Promise.resolve();
+      },
+      removeItem: (key: string) => {
+        localStorage.removeItem(key);
+        return Promise.resolve();
+      },
+    };
+  }
+  // 모바일에서는 AsyncStorage 사용
+  const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+  return AsyncStorage;
+}
+
+// ------------------------------------------------------------
 // Supabase 클라이언트 초기화
 // ------------------------------------------------------------
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
-    // React Native에서는 AsyncStorage로 세션을 영속화
-    storage: AsyncStorage,
+    storage: getStorage(),
     autoRefreshToken: true,
     persistSession: true,
-    // 모바일 앱에서는 URL 기반 세션 감지 불필요
-    detectSessionInUrl: false,
+    detectSessionInUrl: Platform.OS === 'web',
   },
 });
 
