@@ -391,7 +391,16 @@ export type Database = {
     };
 
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      get_or_create_chat_room: {
+        Args: {
+          p_quote_id: string;
+          p_user_id: string;
+          p_dealer_id: string;
+        };
+        Returns: string;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };

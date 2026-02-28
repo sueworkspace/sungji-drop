@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   FlatList,
   TouchableOpacity,
   StyleSheet,
+  Alert,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -13,6 +14,7 @@ import { Colors, Spacing } from '../constants';
 import { PixelText, NeonButton, LoadingOverlay, ErrorBox } from '../components';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import { useQuoteDetail, QuoteWithDealer } from '../src/hooks/useQuoteDetail';
+import { supabase, getCurrentUserId } from '../src/lib/supabase';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 type RouteP = RouteProp<RootStackParamList, 'QuoteDetail'>;
@@ -24,6 +26,11 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
   accepted: { label: '수락됨', color: Colors.saveGreen, bg: '#6BCB7722' },
   expired: { label: '만료', color: Colors.textMuted, bg: '#33333333' },
   cancelled: { label: '취소', color: Colors.textMuted, bg: '#33333333' },
+};
+
+const QUOTE_STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
+  accepted: { label: '수락됨 ✓', color: Colors.saveGreen, bg: '#6BCB7722' },
+  rejected: { label: '거절됨', color: Colors.textMuted, bg: '#33333333' },
 };
 
 function formatPrice(price: number) {
@@ -42,6 +49,120 @@ export default function QuoteDetailScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<RouteP>();
   const { request, quotes, isLoading, error, refetch } = useQuoteDetail(route.params?.requestId);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  // ─── Accept quote ─────────────────────────────────────────────────────────
+
+  async function handleAcceptQuote(quoteId: string, dealerId: string, dealerName: string) {
+    if (!request) return;
+
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      Alert.alert('오류', '로그인이 필요합니다.');
+      return;
+    }
+
+    Alert.alert(
+      '견적 수락',
+      '이 견적을 수락하시겠습니까? 다른 견적은 자동으로 거절됩니다.',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '수락',
+          onPress: async () => {
+            setActionLoading(quoteId);
+            try {
+              // Update this quote status to 'accepted'
+              const { error: acceptError } = await supabase
+                .from('quotes')
+                .update({ status: 'accepted' })
+                .eq('id', quoteId);
+
+              if (acceptError) {
+                Alert.alert('오류', acceptError.message);
+                return;
+              }
+
+              // Update other quotes to 'rejected'
+              await supabase
+                .from('quotes')
+                .update({ status: 'rejected' })
+                .eq('request_id', request.id)
+                .neq('id', quoteId);
+
+              // Update request status to 'accepted'
+              await supabase
+                .from('quote_requests')
+                .update({ status: 'accepted' })
+                .eq('id', request.id);
+
+              // Create or get chat room
+              const { data: roomId, error: rpcError } = await supabase.rpc(
+                'get_or_create_chat_room',
+                {
+                  p_quote_id: quoteId,
+                  p_user_id: userId,
+                  p_dealer_id: dealerId,
+                }
+              );
+
+              if (rpcError) {
+                console.error('[QuoteDetail] get_or_create_chat_room error:', rpcError.message);
+                // Still refetch even if chat room creation fails
+                await refetch();
+                return;
+              }
+
+              await refetch();
+
+              if (roomId) {
+                navigation.navigate('ChatRoom', { roomId, dealerName });
+              }
+            } catch (e: any) {
+              Alert.alert('오류', e?.message ?? '견적 수락 중 오류가 발생했습니다.');
+            } finally {
+              setActionLoading(null);
+            }
+          },
+        },
+      ]
+    );
+  }
+
+  // ─── Start chat ───────────────────────────────────────────────────────────
+
+  async function handleStartChat(quoteId: string, dealerId: string, dealerName: string) {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      Alert.alert('오류', '로그인이 필요합니다.');
+      return;
+    }
+
+    setActionLoading(`chat-${quoteId}`);
+    try {
+      const { data: roomId, error: rpcError } = await supabase.rpc(
+        'get_or_create_chat_room',
+        {
+          p_quote_id: quoteId,
+          p_user_id: userId,
+          p_dealer_id: dealerId,
+        }
+      );
+
+      if (rpcError) {
+        Alert.alert('오류', rpcError.message);
+        return;
+      }
+
+      if (roomId) {
+        navigation.navigate('ChatRoom', { roomId, dealerName });
+      }
+    } catch (e: any) {
+      Alert.alert('오류', e?.message ?? '채팅방 생성 중 오류가 발생했습니다.');
+    } finally {
+      setActionLoading(null);
+    }
+  }
 
   // Loading state
   if (isLoading) {
@@ -95,24 +216,48 @@ export default function QuoteDetailScreen() {
 
   const renderQuote = ({ item, index }: { item: QuoteWithDealer; index: number }) => {
     const isBest = index === 0; // Already sorted by total_cost_24m ascending from hook
+    const quoteStatus = item.status; // 'pending' | 'accepted' | 'rejected' | 'expired'
+    const isRejected = quoteStatus === 'rejected';
+    const isAccepted = quoteStatus === 'accepted';
+    const quoteBadgeCfg = QUOTE_STATUS_CONFIG[quoteStatus];
+    const dealerName = item.dealers?.store_name ?? '딜러';
+    const dealerId = item.dealer_id;
+
     return (
-      <View style={[styles.quoteCard, isBest && styles.quoteCardBest]}>
-        {isBest && (
+      <View
+        style={[
+          styles.quoteCard,
+          isBest && !isRejected && styles.quoteCardBest,
+          isRejected && styles.quoteCardRejected,
+        ]}
+      >
+        {isBest && !isRejected && (
           <View style={styles.bestLabel}>
             <PixelText size="badge" color={Colors.textInverse}>BEST</PixelText>
           </View>
         )}
         <View style={styles.quoteTop}>
           <View style={styles.dealerInfo}>
-            <Text style={styles.dealerName}>{item.dealers?.store_name ?? '딜러 정보 없음'}</Text>
-            <Text style={styles.dealerRegion}>{item.dealers?.region ?? ''}</Text>
+            <Text style={[styles.dealerName, isRejected && styles.textDimmed]}>
+              {dealerName}
+            </Text>
+            <Text style={[styles.dealerRegion, isRejected && styles.textDimmed]}>
+              {item.dealers?.region ?? ''}
+            </Text>
             <View style={styles.ratingRow}>
-              <Text style={styles.ratingText}>★ {item.dealers?.rating?.toFixed(1) ?? '0.0'}</Text>
-              <Text style={styles.reviewCount}>({item.dealers?.review_count ?? 0}개 리뷰)</Text>
+              <Text style={[styles.ratingText, isRejected && styles.textDimmed]}>
+                ★ {item.dealers?.rating?.toFixed(1) ?? '0.0'}
+              </Text>
+              <Text style={[styles.reviewCount, isRejected && styles.textDimmed]}>
+                ({item.dealers?.review_count ?? 0}개 리뷰)
+              </Text>
             </View>
           </View>
           <View style={styles.priceColumn}>
-            <PixelText size="section" color={Colors.dropGreen}>
+            <PixelText
+              size="section"
+              color={isRejected ? Colors.textMuted : Colors.dropGreen}
+            >
               ₩{formatPrice(item.total_cost_24m)}
             </PixelText>
             <Text style={styles.priceNote}>24개월 총합</Text>
@@ -122,31 +267,67 @@ export default function QuoteDetailScreen() {
         <View style={styles.quotePriceBreakdown}>
           <View style={styles.priceRow}>
             <Text style={styles.priceLabel}>기기값</Text>
-            <Text style={styles.priceValue}>₩{formatPrice(item.device_price)}</Text>
+            <Text style={[styles.priceValue, isRejected && styles.textDimmed]}>
+              ₩{formatPrice(item.device_price)}
+            </Text>
           </View>
           <View style={styles.priceRow}>
             <Text style={styles.priceLabel}>월 요금</Text>
-            <Text style={styles.priceValue}>₩{formatPrice(item.monthly_fee)}/월</Text>
+            <Text style={[styles.priceValue, isRejected && styles.textDimmed]}>
+              ₩{formatPrice(item.monthly_fee)}/월
+            </Text>
           </View>
           <View style={styles.priceRow}>
             <Text style={styles.priceLabel}>공시지원금</Text>
-            <Text style={[styles.priceValue, { color: Colors.dropGreen }]}>
+            <Text
+              style={[
+                styles.priceValue,
+                { color: isRejected ? Colors.textMuted : Colors.dropGreen },
+              ]}
+            >
               -₩{formatPrice(item.subsidy)}
             </Text>
           </View>
         </View>
 
-        <NeonButton
-          label="채팅하기 ◈"
-          onPress={() =>
-            navigation.navigate('ChatRoom', {
-              roomId: item.id,
-              dealerName: item.dealers?.store_name ?? '딜러',
-            })
-          }
-          size="md"
-          style={styles.chatButton}
-        />
+        {/* Status badge for accepted/rejected */}
+        {quoteBadgeCfg && (
+          <View
+            style={[
+              styles.quoteStatusBadge,
+              { backgroundColor: quoteBadgeCfg.bg, borderColor: quoteBadgeCfg.color },
+            ]}
+          >
+            <Text style={[styles.quoteStatusText, { color: quoteBadgeCfg.color }]}>
+              {quoteBadgeCfg.label}
+            </Text>
+          </View>
+        )}
+
+        {/* Action buttons */}
+        <View style={styles.actionRow}>
+          {/* Accept button: show only for pending quotes */}
+          {quoteStatus === 'pending' && (
+            <NeonButton
+              label={actionLoading === item.id ? '처리중...' : '견적 수락'}
+              onPress={() => handleAcceptQuote(item.id, dealerId, dealerName)}
+              size="md"
+              style={styles.acceptButton}
+              disabled={actionLoading !== null}
+            />
+          )}
+
+          {/* Chat button: show for pending & accepted quotes */}
+          {!isRejected && (
+            <NeonButton
+              label={actionLoading === `chat-${item.id}` ? '연결중...' : '채팅하기 ◈'}
+              onPress={() => handleStartChat(item.id, dealerId, dealerName)}
+              size="md"
+              style={styles.chatButton}
+              disabled={actionLoading !== null}
+            />
+          )}
+        </View>
       </View>
     );
   };
@@ -278,6 +459,9 @@ const styles = StyleSheet.create({
     borderColor: Colors.dealGold,
     backgroundColor: '#FFD93D08',
   },
+  quoteCardRejected: {
+    opacity: 0.5,
+  },
   bestLabel: {
     position: 'absolute',
     top: 0,
@@ -311,7 +495,25 @@ const styles = StyleSheet.create({
   priceLabel: { fontFamily: 'PressStart2P', fontSize: 6, color: Colors.textMuted },
   priceValue: { fontFamily: 'NotoSansKR-Bold', fontSize: 13, color: Colors.textSecondary },
 
-  chatButton: { alignSelf: 'flex-end' },
+  textDimmed: { color: Colors.textMuted },
+
+  quoteStatusBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderRadius: 2,
+    marginBottom: Spacing.sm,
+  },
+  quoteStatusText: { fontFamily: 'PressStart2P', fontSize: 6 },
+
+  actionRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: Spacing.sm,
+  },
+  acceptButton: {},
+  chatButton: {},
 
   emptyQuotes: {
     backgroundColor: Colors.card,

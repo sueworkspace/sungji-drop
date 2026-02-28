@@ -8,87 +8,48 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Spacing } from '../constants';
 import { PixelText } from '../components';
 import { RootStackParamList } from '../navigation/RootNavigator';
+import { useMessages } from '../src/hooks/useMessages';
+import type { Message } from '../src/lib/supabase-types';
 
 type RouteP = RouteProp<RootStackParamList, 'ChatRoom'>;
 
-type MessageRole = 'user' | 'dealer';
-
-interface Message {
-  id: string;
-  role: MessageRole;
-  text: string;
-  time: string;
+function formatTime(isoString: string): string {
+  const d = new Date(isoString);
+  return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
 }
-
-const MOCK_MESSAGES: Message[] = [
-  {
-    id: 'm1',
-    role: 'dealer',
-    text: '안녕하세요! 견적 문의 주셔서 감사합니다. 어떻게 도와드릴까요?',
-    time: '오후 2:30',
-  },
-  {
-    id: 'm2',
-    role: 'user',
-    text: '갤럭시 S25 Ultra 256GB SKT로 견적 요청했는데요, 자세한 내용 알고 싶습니다.',
-    time: '오후 2:31',
-  },
-  {
-    id: 'm3',
-    role: 'dealer',
-    text: '네, 확인했습니다! 현재 공시지원금 15만원 적용 가능하고요, 기기값 89만원에 드릴 수 있어요. SKT 5G 무제한 요금제 기준입니다.',
-    time: '오후 2:32',
-  },
-  {
-    id: 'm4',
-    role: 'dealer',
-    text: '추가로 보상판매 있으시면 더 할인 가능합니다. 기존 폰 있으세요?',
-    time: '오후 2:32',
-  },
-  {
-    id: 'm5',
-    role: 'user',
-    text: '갤럭시 S24 있는데요, 상태는 상급이에요.',
-    time: '오후 2:35',
-  },
-];
 
 export default function ChatRoomScreen() {
   const navigation = useNavigation();
   const route = useRoute<RouteP>();
-  const { dealerName } = route.params;
+  const { roomId, dealerName } = route.params;
 
-  const [messages, setMessages] = useState<Message[]>(MOCK_MESSAGES);
+  const { messages, isLoading, sendMessage } = useMessages(roomId);
   const [inputText, setInputText] = useState('');
+  const [isSending, setIsSending] = useState(false);
   const listRef = useRef<FlatList>(null);
 
-  const sendMessage = () => {
+  const handleSend = async () => {
     const text = inputText.trim();
     if (!text) return;
 
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
-
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `m${Date.now()}`,
-        role: 'user',
-        text,
-        time: timeStr,
-      },
-    ]);
     setInputText('');
+    setIsSending(true);
+    try {
+      await sendMessage(text);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const renderMessage = ({ item }: { item: Message }) => {
-    const isUser = item.role === 'user';
+    const isUser = item.sender_type === 'user';
     return (
       <View style={[styles.messageRow, isUser ? styles.messageRowUser : styles.messageRowDealer]}>
         {!isUser && (
@@ -99,10 +60,12 @@ export default function ChatRoomScreen() {
         <View style={styles.messageBubbleWrapper}>
           <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleDealer]}>
             <Text style={[styles.bubbleText, isUser ? styles.bubbleTextUser : styles.bubbleTextDealer]}>
-              {item.text}
+              {item.content}
             </Text>
           </View>
-          <Text style={[styles.messageTime, isUser && { textAlign: 'right' }]}>{item.time}</Text>
+          <Text style={[styles.messageTime, isUser && { textAlign: 'right' }]}>
+            {formatTime(item.created_at)}
+          </Text>
         </View>
       </View>
     );
@@ -126,14 +89,20 @@ export default function ChatRoomScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={0}
       >
-        <FlatList
-          ref={listRef}
-          data={messages}
-          keyExtractor={(item) => item.id}
-          renderItem={renderMessage}
-          contentContainerStyle={styles.messageList}
-          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
-        />
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.dropGreen} />
+          </View>
+        ) : (
+          <FlatList
+            ref={listRef}
+            data={messages}
+            keyExtractor={(item) => item.id}
+            renderItem={renderMessage}
+            contentContainerStyle={styles.messageList}
+            onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+          />
+        )}
 
         {/* Input Bar */}
         <View style={styles.inputBar}>
@@ -145,13 +114,14 @@ export default function ChatRoomScreen() {
             placeholderTextColor={Colors.textMuted}
             multiline
             maxLength={500}
+            editable={!isSending}
           />
           <TouchableOpacity
-            style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
-            onPress={sendMessage}
-            disabled={!inputText.trim()}
+            style={[styles.sendButton, (!inputText.trim() || isSending) && styles.sendButtonDisabled]}
+            onPress={handleSend}
+            disabled={!inputText.trim() || isSending}
           >
-            <PixelText size="badge" color={inputText.trim() ? Colors.textInverse : Colors.textMuted}>
+            <PixelText size="badge" color={inputText.trim() && !isSending ? Colors.textInverse : Colors.textMuted}>
               전송
             </PixelText>
           </TouchableOpacity>
@@ -173,6 +143,12 @@ const styles = StyleSheet.create({
     borderBottomColor: '#1a1a2e',
   },
   headerCenter: { flex: 1, alignItems: 'center' },
+
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   messageList: { padding: Spacing.base, gap: Spacing.md },
 

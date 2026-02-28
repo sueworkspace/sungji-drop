@@ -16,3 +16,8 @@ export { useMyStats } from './useMyStats';
 export type { UserStats } from './useMyStats';
 
 export { useNotifications } from './useNotifications';
+
+export { useChatRooms } from './useChatRooms';
+export type { ChatRoomWithDetails } from './useChatRooms';
+
+export { useMessages } from './useMessages';
