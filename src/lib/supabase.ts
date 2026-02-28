@@ -11,23 +11,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Database } from './supabase-types';
 
 // ------------------------------------------------------------
-// 환경변수 (Expo는 EXPO_PUBLIC_ 접두사를 통해 클라이언트에 노출)
+// Supabase 프로젝트 설정 (anon key는 공개 키이므로 코드에 포함 가능)
 // ------------------------------------------------------------
-const supabaseUrl: string =
-  process.env.EXPO_PUBLIC_SUPABASE_URL ?? 'https://your-project.supabase.co';
-
-const supabaseAnonKey: string =
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? 'your-anon-key';
-
-if (
-  supabaseUrl === 'https://your-project.supabase.co' ||
-  supabaseAnonKey === 'your-anon-key'
-) {
-  console.warn(
-    '[Supabase] 플레이스홀더 값을 사용 중입니다.\n' +
-    '.env 파일에 EXPO_PUBLIC_SUPABASE_URL과 EXPO_PUBLIC_SUPABASE_ANON_KEY를 설정하세요.',
-  );
-}
+const supabaseUrl = 'https://okrmviftqsrqjfxapyxm.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9rcm12aWZ0cXNycWpmeGFweXhtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyMTg2MjksImV4cCI6MjA4Nzc5NDYyOX0.Duk13orD42EFLEgBJ8Fj7YnpsfS3H_R61TaIOhXzlrw';
 
 // ------------------------------------------------------------
 // Supabase 클라이언트 초기화
