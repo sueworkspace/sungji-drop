@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -40,6 +40,12 @@ function formatRelativeTime(isoString: string | null): string {
 export default function ChatListScreen() {
   const navigation = useNavigation<Nav>();
   const { chatRooms, isLoading, error, refetch } = useChatRooms();
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
 
   const renderItem = ({ item }: { item: ChatRoomWithDetails }) => (
     <TouchableOpacity
@@ -128,8 +134,8 @@ export default function ChatListScreen() {
           ItemSeparatorComponent={() => <View style={styles.separator} />}
           refreshControl={
             <RefreshControl
-              refreshing={isLoading}
-              onRefresh={refetch}
+              refreshing={refreshing}
+              onRefresh={onRefresh}
               tintColor={Colors.dropGreen}
               colors={[Colors.dropGreen]}
             />

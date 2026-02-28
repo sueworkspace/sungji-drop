@@ -6,22 +6,33 @@ import QuotesScreen from '../screens/QuotesScreen';
 import ChatListScreen from '../screens/ChatListScreen';
 import MyPageScreen from '../screens/MyPageScreen';
 import { Colors } from '../constants';
+import { useChatRooms } from '../src/hooks/useChatRooms';
 
 export type { TabParamList } from './types';
 import { TabParamList } from './types';
 
 const Tab = createBottomTabNavigator<TabParamList>();
 
-function TabIcon({ icon, label, focused }: { icon: string; label: string; focused: boolean }) {
+function TabIcon({ icon, label, focused, badge }: { icon: string; label: string; focused: boolean; badge?: number }) {
   return (
     <View style={styles.tabItem}>
-      <Text style={[styles.tabIcon, { color: focused ? Colors.dropGreen : '#444' }]}>{icon}</Text>
+      <View>
+        <Text style={[styles.tabIcon, { color: focused ? Colors.dropGreen : '#444' }]}>{icon}</Text>
+        {badge != null && badge > 0 && (
+          <View style={styles.tabBadge}>
+            <Text style={styles.tabBadgeText}>{badge > 9 ? '9+' : badge}</Text>
+          </View>
+        )}
+      </View>
       <Text style={[styles.tabLabel, { color: focused ? Colors.dropGreen : '#444' }]}>{label}</Text>
     </View>
   );
 }
 
 export default function TabNavigator() {
+  const { chatRooms } = useChatRooms();
+  const unreadChats = chatRooms.reduce((sum, r) => sum + (r.user_unread_count || 0), 0);
+
   return (
     <Tab.Navigator
       screenOptions={{
@@ -48,7 +59,7 @@ export default function TabNavigator() {
         name="Chat"
         component={ChatListScreen}
         options={{
-          tabBarIcon: ({ focused }) => <TabIcon icon="◈" label="채팅" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon icon="◈" label="채팅" focused={focused} badge={unreadChats} />,
         }}
       />
       <Tab.Screen
@@ -82,5 +93,22 @@ const styles = StyleSheet.create({
   tabLabel: {
     fontFamily: 'PressStart2P',
     fontSize: 6,
+  },
+  tabBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -10,
+    backgroundColor: Colors.alertRed,
+    borderRadius: 7,
+    minWidth: 14,
+    height: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  tabBadgeText: {
+    fontFamily: 'PressStart2P',
+    fontSize: 5,
+    color: '#fff',
   },
 });

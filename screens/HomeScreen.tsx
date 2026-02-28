@@ -175,7 +175,7 @@ export default function HomeScreen() {
         {/* My Quote Requests */}
         <View style={styles.sectionHeader}>
           <PixelText size="section" color={Colors.dropGreen}>내 견적 요청</PixelText>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Tabs', { screen: 'Quotes' } as any)}>
             <PixelText size="badge" color={Colors.textMuted}>전체보기 →</PixelText>
           </TouchableOpacity>
         </View>

@@ -73,10 +73,37 @@ function getBestPrice(item: QuoteRequestWithDevice): number {
   return Math.min(...item.quotes.map((q) => q.total_cost_24m));
 }
 
+type SortKey = '최신순' | '최저가순' | '견적많은순';
+
+const SORTS: Array<{ key: SortKey; label: string }> = [
+  { key: '최신순', label: '최신순' },
+  { key: '최저가순', label: '최저가순' },
+  { key: '견적많은순', label: '견적많은순' },
+];
+
+function sortRequests(items: QuoteRequestWithDevice[], sort: SortKey): QuoteRequestWithDevice[] {
+  const arr = [...items];
+  switch (sort) {
+    case '최신순':
+      return arr.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    case '최저가순':
+      return arr.sort((a, b) => {
+        const pa = getBestPrice(a) || Infinity;
+        const pb = getBestPrice(b) || Infinity;
+        return pa - pb;
+      });
+    case '견적많은순':
+      return arr.sort((a, b) => b.quote_count - a.quote_count);
+    default:
+      return arr;
+  }
+}
+
 export default function QuotesScreen() {
   const navigation = useNavigation<Nav>();
   const { requests, isLoading, error, refetch } = useMyQuoteRequests();
   const [activeFilter, setActiveFilter] = useState<FilterKey>('전체');
+  const [activeSort, setActiveSort] = useState<SortKey>('최신순');
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
@@ -85,7 +112,10 @@ export default function QuotesScreen() {
     setRefreshing(false);
   }, [refetch]);
 
-  const filtered = requests.filter((r) => matchesFilter(r.status, activeFilter));
+  const filtered = sortRequests(
+    requests.filter((r) => matchesFilter(r.status, activeFilter)),
+    activeSort
+  );
 
   const renderItem = ({ item }: { item: QuoteRequestWithDevice }) => {
     const statusCfg = STATUS_CONFIG[item.status] ?? STATUS_CONFIG.expired;
@@ -151,6 +181,21 @@ export default function QuotesScreen() {
             selected={activeFilter === f.key}
             onPress={() => setActiveFilter(f.key)}
           />
+        ))}
+      </View>
+
+      {/* Sort options */}
+      <View style={styles.sortRow}>
+        {SORTS.map((s) => (
+          <TouchableOpacity
+            key={s.key}
+            onPress={() => setActiveSort(s.key)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.sortLabel, activeSort === s.key && styles.sortLabelActive]}>
+              {s.label}
+            </Text>
+          </TouchableOpacity>
         ))}
       </View>
 
@@ -255,4 +300,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.base,
   },
   emptyButton: { marginTop: Spacing.md },
+
+  sortRow: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.base,
+    paddingBottom: Spacing.sm,
+    gap: Spacing.md,
+  },
+  sortLabel: {
+    fontFamily: 'NotoSansKR',
+    fontSize: 12,
+    color: Colors.textMuted,
+  },
+  sortLabelActive: {
+    color: Colors.dropGreen,
+    fontFamily: 'NotoSansKR-Bold',
+  },
 });
